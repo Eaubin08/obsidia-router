@@ -39,6 +39,8 @@ class MetricsCollector:
         }
         if result is not None:
             rec["fireworks_tokens"] = result.get("total_tokens", 0)
+            rec["prompt_tokens"] = result.get("prompt_tokens", 0)
+            rec["completion_tokens"] = result.get("completion_tokens", 0)
             rec["latency_s"] = result.get("latency_s", 0.0)
             rec["dry_run"] = result.get("dry_run", False)
             if result.get("error"):

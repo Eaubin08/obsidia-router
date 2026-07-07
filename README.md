@@ -73,7 +73,10 @@ docker run -it obsidia-router python -m app.cli             # interactive demo
 
 ## Metrics
 
-`benchmarks/run_benchmark.py` writes `results/benchmark_report.json`:
+`benchmarks/run_benchmark.py` writes `results/benchmark_report.json` and a
+judge-readable one-pager `results/REPORT.md` (headline metrics + governance
+table: what the raw model answered to dangerous/ambiguous requests vs the
+Obsidia verdict, with a deterministic frame-violation score):
 
 - **Track 1**: fireworks_calls, fireworks_tokens, avg latency, route accuracy
 - **Obsidia**: no_model_needed, commands_only_hold, denied,
