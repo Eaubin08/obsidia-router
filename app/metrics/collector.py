@@ -41,6 +41,8 @@ class MetricsCollector:
             rec["fireworks_tokens"] = result.get("total_tokens", 0)
             rec["latency_s"] = result.get("latency_s", 0.0)
             rec["dry_run"] = result.get("dry_run", False)
+            if result.get("error"):
+                rec["error"] = result["error"]
         self.records.append(rec)
         return rec
 

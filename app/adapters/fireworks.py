@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import urllib.error
 import urllib.request
 
 DEFAULT_BASE_URL = "https://api.fireworks.ai/inference/v1"
@@ -70,8 +71,37 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
         method="POST",
     )
     t0 = time.perf_counter()
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")[:300]
+        except Exception:
+            pass
+        return {
+            "dry_run": False,
+            "error": f"HTTP {exc.code}: {detail or exc.reason}",
+            "model": model,
+            "text": f"[error] Fireworks call failed (HTTP {exc.code}). "
+                    "Check FIREWORKS_API_KEY and model availability.",
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "latency_s": round(time.perf_counter() - t0, 3),
+        }
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return {
+            "dry_run": False,
+            "error": f"network: {exc}",
+            "model": model,
+            "text": "[error] Fireworks unreachable — network error.",
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "latency_s": round(time.perf_counter() - t0, 3),
+        }
     latency = time.perf_counter() - t0
 
     usage = data.get("usage", {})

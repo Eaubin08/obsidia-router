@@ -18,11 +18,13 @@ from app.gates.gates import evaluate as evaluate_gates
 from app.ir.unified_ir import build_ir
 from app.router.semantic_topics import route_topic
 
-# Fireworks model ladder, cheapest first. Overridable via ALLOWED_MODELS.
+# Fireworks serverless model ladder, cheapest first. The catalog moves fast:
+# override via ALLOWED_MODELS (comma-separated) to match the current library
+# at https://app.fireworks.ai/models or the scoring harness allowlist.
 DEFAULT_MODEL_LADDER = [
-    "accounts/fireworks/models/llama-v3p1-8b-instruct",
-    "accounts/fireworks/models/llama-v3p1-70b-instruct",
-    "accounts/fireworks/models/llama-v3p1-405b-instruct",
+    "accounts/fireworks/models/llama4-scout-instruct-basic",
+    "accounts/fireworks/models/llama4-maverick-instruct-basic",
+    "accounts/fireworks/models/deepseek-v3",
 ]
 
 

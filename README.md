@@ -64,7 +64,7 @@ docker run -it obsidia-router python -m app.cli             # interactive demo
 |---|---|---|
 | `FIREWORKS_API_KEY` | for live calls | Without it, level-3 decisions run in dry-run mode (route + token estimate, no network). |
 | `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. Scoring harnesses may override. |
-| `ALLOWED_MODELS` | no | Comma-separated model ladder, cheapest first. Overrides the default Llama 3.1 8B → 70B → 405B ladder. |
+| `ALLOWED_MODELS` | no | Comma-separated model ladder, cheapest first. Overrides the default Llama 4 Scout → Llama 4 Maverick → DeepSeek V3 ladder (check the current serverless catalog at app.fireworks.ai/models). |
 
 ## Metrics
 
