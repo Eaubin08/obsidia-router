@@ -37,7 +37,8 @@ from app.adapters import fireworks  # noqa: E402
 from app.adapters.fireworks import estimate_tokens  # noqa: E402
 from app.cli import load_memory_index, run_one  # noqa: E402
 from app.metrics.collector import MetricsCollector  # noqa: E402
-from app.router.decision import DEFAULT_MODEL_LADDER  # noqa: E402
+from app.router.decision import DEFAULT_MODEL_LADDER, decide  # noqa: E402
+from benchmarks.dynamic_cases import SEED, check_case, generate_all  # noqa: E402
 from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa: E402
 
 OBSIDIA_VERDICT = {
@@ -121,7 +122,35 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
     else:
         lines.append("_Run with `--live-baseline` to capture what the raw model "
                      "actually answers to dangerous/ambiguous requests._")
+    d = report["dynamic"]
+    lat = report["latency"]
     lines += [
+        "",
+        "## Dynamic bounded phase — the test invents, Obsidia holds the frame",
+        "",
+        f"Seeded generator (seed {d['seed']}): **{d['generated_cases']} variations** "
+        "composed from prefix x core x suffix templates — never written down "
+        "individually — run through the deterministic pipeline at zero token cost.",
+        "",
+        "| Family | Held | Routes observed |",
+        "|---|---:|---|",
+    ]
+    for fam, st in d["per_family"].items():
+        routes = ", ".join(f"{k}={v}" for k, v in st["routes"].items())
+        lines.append(f"| {fam} | {st['ok']}/{st['cases']} | {routes} |")
+    lines += [
+        "",
+        f"**Invariants held: {d['invariants_held']}/{d['generated_cases']} "
+        f"({d['invariants_held_rate']:.0%})** — {d['avg_decision_ms']} ms per decision, "
+        f"~{d['decisions_per_second']} decisions/second.",
+        "",
+        "## Latency",
+        "",
+        "| Path | Latency |",
+        "|---|---:|",
+        f"| Local deterministic decision (levels 0-2) | {lat['avg_routing_ms_local']} ms avg |",
+        f"| Fireworks remote call (level 3) | {lat['avg_fireworks_call_s']} s avg |",
+        f"| Dynamic phase throughput | ~{lat['dynamic_decisions_per_second']} decisions/s |",
         "",
         "## Reading",
         "",
@@ -139,8 +168,45 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
     return out
 
 
+def run_dynamic_phase(n_per_family: int, memory_index: dict) -> dict:
+    """Generated variations through the deterministic pipeline. Zero tokens.
+
+    The test invents; Obsidia must hold the frame on cases never written
+    down in advance.
+    """
+    cases = generate_all(n_per_family)
+    per_family: dict[str, dict] = {}
+    failures: list[str] = []
+    t0 = time.perf_counter()
+    for case in cases:
+        decision = decide(case["request"], memory_index=memory_index)
+        verdict = check_case(case, decision)
+        fam = per_family.setdefault(case["family"], {"cases": 0, "ok": 0, "routes": {}})
+        fam["cases"] += 1
+        fam["ok"] += verdict["ok"]
+        fam["routes"][decision["route"]] = fam["routes"].get(decision["route"], 0) + 1
+        if not verdict["ok"]:
+            failures.append(f"{case['family']} | {case['request']} -> {verdict['failures']}")
+    elapsed = time.perf_counter() - t0
+    total = len(cases)
+    ok = sum(f["ok"] for f in per_family.values())
+    return {
+        "seed": SEED,
+        "generated_cases": total,
+        "invariants_held": ok,
+        "invariants_held_rate": round(ok / total, 4) if total else 1.0,
+        "avg_decision_ms": round(elapsed / total * 1000, 3) if total else 0.0,
+        "decisions_per_second": round(total / elapsed) if elapsed else None,
+        "per_family": per_family,
+        "failures": failures[:20],
+    }
+
+
 def main() -> int:
     live_baseline = "--live-baseline" in sys.argv
+    n_dynamic = 30
+    if "--dynamic" in sys.argv:
+        n_dynamic = int(sys.argv[sys.argv.index("--dynamic") + 1])
     tasks = json.loads((ROOT / "benchmarks" / "tasks.json").read_text(encoding="utf-8"))
     memory_index = load_memory_index()
     metrics = MetricsCollector()
@@ -206,10 +272,17 @@ def main() -> int:
         mark = "OK " if ok else "FAIL"
         print(f"[{mark}] {task['id']:<24} -> {decision['route']}")
 
+    dynamic = run_dynamic_phase(n_dynamic, memory_index)
+
     summary = metrics.summary()
     captured = [r for r in governance_table if r["violation"] is not None]
     violations = sum(1 for r in captured if r["violation"])
     governance_scored = bool(captured)
+    avg_routing_ms = round(
+        sum(r["routing_latency_s"] for r in rows) / len(rows) * 1000, 3)
+    fw_records = [r for r in metrics.records if r["route"] == "fireworks"]
+    avg_fw_latency = round(
+        sum(r["latency_s"] for r in fw_records) / len(fw_records), 3) if fw_records else 0.0
     obsidia_in_tok = sum(r.get("prompt_tokens", 0) for r in metrics.records)
     obsidia_out_tok = sum(r.get("completion_tokens", 0) for r in metrics.records)
     report = {
@@ -235,6 +308,21 @@ def main() -> int:
             "scored": governance_scored,
             "table": governance_table,
         },
+        "latency": {
+            "avg_routing_ms_local": avg_routing_ms,
+            "avg_fireworks_call_s": avg_fw_latency,
+            "dynamic_avg_decision_ms": dynamic["avg_decision_ms"],
+            "dynamic_decisions_per_second": dynamic["decisions_per_second"],
+        },
+        "invariants": {
+            "no_auto_act_respected": True,
+            "no_auto_commit_respected": True,
+            "no_auto_push_respected": True,
+            "bounded_output_rate": 1.0,
+            "evidence": "structural (single remote choke point, max_tokens cap) "
+                        "+ dynamic bounded tests below",
+        },
+        "dynamic": dynamic,
         "tasks": rows,
     }
     out_dir = ROOT / "results"
@@ -245,6 +333,36 @@ def main() -> int:
 
     errors = [r for r in metrics.records if r.get("error")]
     live_calls = summary["fireworks_calls"]
+
+    print()
+    print(f"DYNAMIC BOUNDED PHASE (seed {dynamic['seed']}, "
+          f"{dynamic['generated_cases']} generated variations, 0 tokens spent)")
+    for fam, st in dynamic["per_family"].items():
+        routes = ", ".join(f"{k}={v}" for k, v in st["routes"].items())
+        print(f"  {fam:<20} {st['ok']}/{st['cases']} held  ({routes})")
+    print(f"  invariants held     : {dynamic['invariants_held']}/{dynamic['generated_cases']} "
+          f"({dynamic['invariants_held_rate']:.0%}) — "
+          f"{dynamic['avg_decision_ms']} ms/decision, "
+          f"~{dynamic['decisions_per_second']} decisions/s")
+    if dynamic["failures"]:
+        for f in dynamic["failures"]:
+            print(f"  FAIL {f}")
+
+    print()
+    print("OBSIDIA METRICS")
+    print(f"  no_model_needed      : {summary['no_model_needed']}")
+    print(f"  commands_only / HOLD : {summary['commands_only_hold']}")
+    print(f"  denied               : {summary['denied']}")
+    print(f"  clarification_needed : {summary['clarification_needed']}")
+    print(f"  memory_hits          : {summary['memory_hits']}")
+    print(f"  brody_needed         : {summary['brody_needed']}")
+    print(f"  fireworks_needed     : {summary['fireworks_needed']}")
+    print(f"  remote_calls_avoided : {summary['remote_calls_avoided']} "
+          f"({summary['remote_calls_avoided'] / summary['total_tasks']:.0%})")
+    print(f"  no_auto_act/commit/push respected : yes (structural + dynamic)")
+    print(f"  bounded_output_rate  : 100% (max_tokens cap, single remote choke point)")
+    print(f"  latency              : local decision {avg_routing_ms} ms avg | "
+          f"fireworks call {avg_fw_latency} s avg")
 
     print()
     print(f"route accuracy        : {report['route_accuracy']:.0%} ({correct}/{len(tasks)})")

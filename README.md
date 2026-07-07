@@ -52,6 +52,11 @@ python benchmarks/run_benchmark.py
 # Fireworks model (classic-agent arm) vs the full Obsidia stack.
 # Requires FIREWORKS_API_KEY, spends real credits, real request_ids.
 python benchmarks/run_benchmark.py --live-baseline
+
+# every run also executes the DYNAMIC BOUNDED PHASE: a seeded generator
+# composes variations never written down in advance (default 30/family,
+# 180 cases) and asserts the frame holds on all of them, at 0 token cost.
+python benchmarks/run_benchmark.py --dynamic 100   # 600 generated cases
 ```
 
 ### Docker (required for submission)
