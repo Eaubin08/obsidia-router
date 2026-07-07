@@ -8,18 +8,38 @@
 | Metric | Baseline (direct model) | Obsidia | Gain |
 |---|---:|---:|---:|
 | Remote calls | 18 | 3 | 83% avoided |
-| Remote tokens (measured) | 6803 | 1740 | 74% saved |
+| Remote tokens (measured) | 6795 | 1740 | 74% saved |
 | Frame violations (governed tasks) | 2/8 | 0/8 | governed |
 | Route accuracy | — | 100% | — |
 | No-model resolution rate (level 0) | 0% | 61% | — |
 | Token savings ratio | 1x | — | **3.9x less** |
-| Avg end-to-end latency / task | 1.95 s | 0.90 s | 2.2x faster |
+| Avg end-to-end latency / task | 2.66 s | 1.41 s | 1.9x faster |
 
 - Tasks: 18 across 8 families (status, IR, world actions, destructive, ambiguous, memory, local organ, remote reasoning)
 - Distribution: 3 no-model, 4 HOLD, 2 denied, 2 clarify, 2 memory, 2 brody, 3 fireworks
 - Invariants: no_auto_act / no_auto_commit / no_auto_push respected on every task (asserted by dynamic bounded tests)
-- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 0.8978s
+- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 1.4071s
 - Model ladder (cheapest sufficient): accounts/fireworks/models/gpt-oss-120b, accounts/fireworks/models/glm-5p1, accounts/fireworks/models/deepseek-v4-pro
+
+## Comparison method — direct model vs Obsidia Router
+
+This benchmark does not compare Obsidia as a larger language model.
+It compares a direct-model baseline against a router that decides whether remote inference is needed.
+
+| Axis | Direct model baseline | Obsidia Router |
+|---|---:|---:|
+| Remote model calls | 18 | 3 |
+| Remote tokens | 6795 | 1740 |
+| Governed frame violations | 2/8 | 0/8 |
+| Route accuracy | — | 100% |
+
+Interpretation:
+
+- The baseline sends every task to the remote model.
+- Obsidia first compiles the request into IR, gate, level and route.
+- Fireworks is called only when the selected route requires remote inference.
+- HOLD / DENY / CLARIFY / memory / local-organ paths are resolved without remote tokens.
+- Therefore the measured gain is inference avoidance, governance and routing quality, not raw LLM intelligence.
 
 ## Governance table — governed tasks, side by side
 
@@ -73,27 +93,27 @@ No global quality score is introduced. These axes expose existing benchmark fact
 | Level | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
 |---:|---:|---:|---:|---:|---:|---:|
 | 0 | 11 | 0.173 | 0.1 | 0.7 | 0.7 | 0.7 |
-| 1 | 2 | 0.15 | 0.15 | 0.2 | 0.2 | 0.2 |
+| 1 | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | 2 | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
-| 3 | 3 | 5387.4 | 3298.3 | 9698.4 | 9698.4 | 9698.4 |
+| 3 | 3 | 8442.7 | 7072.5 | 12318.3 | 12318.3 | 12318.3 |
 
 ### Speed profile by route
 
 | Route | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
 |---|---:|---:|---:|---:|---:|---:|
-| brody | 2 | 0.15 | 0.15 | 0.2 | 0.2 | 0.2 |
+| brody | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | clarification_needed | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | denied | 2 | 0.15 | 0.15 | 0.2 | 0.2 | 0.2 |
-| fireworks | 3 | 5387.4 | 3298.3 | 9698.4 | 9698.4 | 9698.4 |
+| fireworks | 3 | 8442.7 | 7072.5 | 12318.3 | 12318.3 | 12318.3 |
 | hold_commands_only | 4 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | memory_hit | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | no_model_needed | 3 | 0.333 | 0.2 | 0.7 | 0.7 | 0.7 |
 
-- Dynamic throughput: **0.043 ms/decision**, ~**23425 decisions/s**
-- Remote/local latency ratio: **33668.8x** when both live remote latency and local latency are available
+- Dynamic throughput: **0.042 ms/decision**, ~**24017 decisions/s**
+- Remote/local latency ratio: **55176.5x** when both live remote latency and local latency are available
 
 
-**Invariants held: 180/180 (100%)** — 0.043 ms per decision, ~23425 decisions/second.
+**Invariants held: 180/180 (100%)** — 0.042 ms per decision, ~24017 decisions/second.
 
 - world_actions_never_reach_model: **60/60** (families: world_action, destructive)
 - no_auto_act respected: yes — on every generated case
@@ -105,9 +125,9 @@ No global quality score is introduced. These axes expose existing benchmark fact
 
 | Path | Latency |
 |---|---:|
-| Local deterministic decision (levels 0-2) | 0.16 ms avg |
-| Fireworks remote call (level 3) | 5.387 s avg |
-| Dynamic phase throughput | ~23425 decisions/s |
+| Local deterministic decision (levels 0-2) | 0.153 ms avg |
+| Fireworks remote call (level 3) | 8.442 s avg |
+| Dynamic phase throughput | ~24017 decisions/s |
 
 ## Cognitive value inputs (readonly projection)
 
@@ -119,9 +139,9 @@ score; every value is copied verbatim from the metrics above.
 
 | Input group | Values (existing metrics) |
 |---|---|
-| avoided_inference | tokens_baseline=6803, tokens_obsidia=1740, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
+| avoided_inference | tokens_baseline=6795, tokens_obsidia=1740, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
 | frame_stability | baseline_violations=2, obsidia_violations=0, governed_tasks=8, invariants_held_rate=1.0 |
-| time_cost | avg_routing_ms_local=0.16, avg_fireworks_call_s=5.387 |
+| time_cost | avg_routing_ms_local=0.153, avg_fireworks_call_s=8.442 |
 | control | route_accuracy=1.0, gate_verdict_distribution={'ALLOW': 8, 'HOLD': 4, 'DENY': 2, 'CLARIFY': 4} |
 
 Boundary: projection=readonly, mint=False, wallet=False, blockchain=False, economic_scoring=False, decision_authority=KX108_ONLY — DEFERRED — inputs only; valuation layer lives upstream.
@@ -148,11 +168,11 @@ model and real token cost.
 | ambiguous_short | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0001s |
 | memory_state | unknown | unknown | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0001s |
 | memory_proof | unknown | proof | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0001s |
-| brody_question | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0002s |
+| brody_question | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
 | brody_why | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
-| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 601 | 3.2983s |
-| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 604 | 3.1655s |
-| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (glm-5p1) | 535 | 9.6984s |
+| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 601 | 7.0725s |
+| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 604 | 5.9373s |
+| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (glm-5p1) | 535 | 12.3183s |
 
 ## Reading
 

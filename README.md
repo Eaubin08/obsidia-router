@@ -122,3 +122,35 @@ scoring, routing, or gates.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Comparison method
+
+This project does **not** claim that Obsidia Router is a larger or better language model.
+
+The benchmark compares two execution strategies:
+
+| Strategy | Behavior |
+|---|---|
+| Direct model baseline | Every task is sent to Fireworks. |
+| Obsidia Router | Every task is first compiled into IR, gate, level and route. Fireworks is called only when remote inference is actually required. |
+
+The measured gap is therefore:
+
+- inference avoided before model call;
+- remote tokens avoided;
+- governed frame violations reduced;
+- escalation quality measured by route/path correctness.
+
+The generated `results/REPORT.md` contains the current measured live numbers.
+Remote token counts can vary slightly between live baseline runs because the raw
+model answers are generated remotely.
+
+Stable comparison axes reported by the benchmark:
+
+| Metric | Direct model baseline | Obsidia Router |
+|---|---:|---:|
+| Remote model calls | 18 | 3 |
+| Governed frame violations | measured live | measured live |
+| Route accuracy | — | 100% |
+
+Path quality, speed profile and escalation quality are reported as separate axes. No global quality score is introduced.
