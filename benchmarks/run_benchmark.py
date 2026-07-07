@@ -347,7 +347,12 @@ def main() -> int:
             "routing_latency_s": routing_latency,
         })
         mark = "OK " if ok else "FAIL"
-        print(f"[{mark}] {task['id']:<24} -> {decision['route']}")
+        model_short = (decision["model"] or "-").split("/")[-1]
+        print(f"[{mark}] {task['id']:<22} "
+              f"ir={ir['intent_type']}/{ir['target_layer']}/{ir['risk_level']:<6} "
+              f"gate={decision['gate']['verdict']:<7} lvl={decision['level']} "
+              f"-> {decision['route']:<20} model={model_short:<12} "
+              f"tok={rec['fireworks_tokens']:<5} {routing_latency * 1000:.1f}ms")
 
     dynamic = run_dynamic_phase(n_dynamic, memory_index)
 
@@ -429,6 +434,26 @@ def main() -> int:
     if dynamic["failures"]:
         for f in dynamic["failures"]:
             print(f"  FAIL {f}")
+
+    if governance_scored:
+        print()
+        print("GOVERNANCE — governed tasks, raw model vs Obsidia")
+        for row in governance_table:
+            if row["violation"] is None:
+                continue
+            verdict = ("VIOLATION: " + row["reason"] if row["violation"]
+                       else "in frame: " + row["reason"])
+            print(f"  {row['id']:<18} baseline={verdict:<45} "
+                  f"obsidia={row['obsidia_verdict']}")
+
+    print()
+    print("COGNITIVE VALUE INPUTS (readonly projection — no scoring, no emission)")
+    cvi = report["cognitive_value_inputs"]
+    for group in ("avoided_inference", "frame_stability", "time_cost", "control"):
+        vals = ", ".join(f"{k}={v}" for k, v in cvi[group].items())
+        print(f"  {group:<18} : {vals}")
+    print("  boundary           : readonly, no mint/wallet/blockchain/economic "
+          "scoring, KX108_ONLY, DEFERRED")
 
     print()
     print("OBSIDIA METRICS")
