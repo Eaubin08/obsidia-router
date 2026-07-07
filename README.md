@@ -88,6 +88,12 @@ Obsidia verdict, with a deterministic frame-violation score):
   clarification_needed, memory_hits, brody_needed, fireworks_needed,
   remote_calls_avoided, estimated_tokens_saved, level0_rate
 
+The report also regroups these existing metrics into **cognitive value
+inputs** — a readonly projection of what the governed valuation layer of the
+full Obsidia stack (deferred, non-token by policy) would read. Nothing is
+minted, priced, or scored, and the projection does not influence Track 1
+scoring, routing, or gates.
+
 ## Tests
 
 - `tests/test_ir.py`, `test_gates.py`, `test_decision.py` — static behavior

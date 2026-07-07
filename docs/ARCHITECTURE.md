@@ -55,6 +55,16 @@ determinism, invariants, gates, frame, specialized organs.
 5. **Remote inference is the last resort and the only place tokens are
    spent** — hence the single choke point in `adapters/fireworks.py`.
 
+## Cognitive value inputs (readonly projection)
+
+The benchmark regroups its existing metrics (avoided inference, frame
+stability, time cost, control) into the inputs a governed cognitive-value
+ledger would read. The valuation layer itself (Gencoin) lives upstream in
+the full stack as readonly/advisory code, is deliberately **deferred**, and
+is bound by a NOT_A_TOKEN policy: no mint, no wallet, no blockchain, no
+economic scoring, decision authority KX108_ONLY. The public projection
+computes no new score — every value is copied verbatim from the benchmark.
+
 ## Relationship to the full Obsidia X-108 stack
 
 This repo is a clean slice, not the whole OS. Upstream (private) live: the

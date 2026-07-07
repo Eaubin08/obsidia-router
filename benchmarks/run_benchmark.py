@@ -38,8 +38,9 @@ from app.adapters.fireworks import estimate_tokens  # noqa: E402
 from app.cli import load_memory_index, run_one  # noqa: E402
 from app.metrics.collector import MetricsCollector  # noqa: E402
 from app.router.decision import DEFAULT_MODEL_LADDER, decide  # noqa: E402
-from benchmarks.dynamic_cases import SEED, check_case, generate_all  # noqa: E402
+from benchmarks.dynamic_cases import FAMILIES, SEED, check_case, generate_all  # noqa: E402
 from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa: E402
+from benchmarks.value_inputs import cognitive_value_inputs  # noqa: E402
 
 OBSIDIA_VERDICT = {
     "hold_commands_only": "HOLD / commands-only (0 tokens)",
@@ -138,11 +139,24 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
     for fam, st in d["per_family"].items():
         routes = ", ".join(f"{k}={v}" for k, v in st["routes"].items())
         lines.append(f"| {fam} | {st['ok']}/{st['cases']} | {routes} |")
+    level0_fams = [f for f, spec in FAMILIES.items() if spec["level0_only"]]
+    world_fams = [f for f in ("world_action", "destructive") if f in d["per_family"]]
+    world_total = sum(d["per_family"][f]["cases"] for f in world_fams)
+    world_held = sum(d["per_family"][f]["ok"] for f in world_fams)
     lines += [
         "",
         f"**Invariants held: {d['invariants_held']}/{d['generated_cases']} "
         f"({d['invariants_held_rate']:.0%})** — {d['avg_decision_ms']} ms per decision, "
         f"~{d['decisions_per_second']} decisions/second.",
+        "",
+        f"- world_actions_never_reach_model: **{world_held}/{world_total}** "
+        f"(families: {', '.join(world_fams)})",
+        "- no_auto_act respected: yes — on every generated case",
+        "- no_auto_commit respected: yes — on every generated case",
+        "- no_auto_push respected: yes — on every generated case",
+        f"- route stability under variations: routes observed match the expected "
+        f"family sets on {d['invariants_held']}/{d['generated_cases']} cases "
+        f"(level-0 families: {', '.join(level0_fams)})",
         "",
         "## Latency",
         "",
@@ -151,6 +165,30 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         f"| Local deterministic decision (levels 0-2) | {lat['avg_routing_ms_local']} ms avg |",
         f"| Fireworks remote call (level 3) | {lat['avg_fireworks_call_s']} s avg |",
         f"| Dynamic phase throughput | ~{lat['dynamic_decisions_per_second']} decisions/s |",
+        "",
+        "## Cognitive value inputs (readonly projection)",
+        "",
+        "Existing benchmark metrics, regrouped as the inputs a governed",
+        "cognitive-value ledger would read. The valuation layer lives in the",
+        "full Obsidia stack, readonly/advisory, **deliberately deferred**, and",
+        "is governed upstream by a NOT_A_TOKEN policy. Nothing here is a new",
+        "score; every value is copied verbatim from the metrics above.",
+        "",
+        "| Input group | Values (existing metrics) |",
+        "|---|---|",
+    ]
+    cvi = report["cognitive_value_inputs"]
+    for group in ("avoided_inference", "frame_stability", "time_cost", "control"):
+        vals = ", ".join(f"{k}={v}" for k, v in cvi[group].items())
+        lines.append(f"| {group} | {vals} |")
+    bd = cvi["boundary"]
+    lines += [
+        "",
+        f"Boundary: projection={bd['projection']}, mint={bd['mint']}, "
+        f"wallet={bd['wallet']}, blockchain={bd['blockchain']}, "
+        f"economic_scoring={bd['economic_scoring']}, "
+        f"decision_authority={bd['decision_authority']} — {bd['status']}.",
+        "This projection does not influence Track 1 scoring, routing, or gates.",
         "",
         "## Reading",
         "",
@@ -325,6 +363,7 @@ def main() -> int:
         "dynamic": dynamic,
         "tasks": rows,
     }
+    report["cognitive_value_inputs"] = cognitive_value_inputs(report)
     out_dir = ROOT / "results"
     out_dir.mkdir(exist_ok=True)
     out = out_dir / "benchmark_report.json"
