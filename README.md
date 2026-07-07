@@ -45,8 +45,13 @@ python -m app.cli
 # tests (static + dynamic bounded invariant tests)
 python -m pytest tests/ -q
 
-# benchmark: obsidia routing vs direct-to-model baseline
+# benchmark: obsidia routing vs direct-to-model baseline (estimated tokens)
 python benchmarks/run_benchmark.py
+
+# MEASURED head-to-head: all 18 tasks really sent raw to the cheapest
+# Fireworks model (classic-agent arm) vs the full Obsidia stack.
+# Requires FIREWORKS_API_KEY, spends real credits, real request_ids.
+python benchmarks/run_benchmark.py --live-baseline
 ```
 
 ### Docker (required for submission)
@@ -64,7 +69,7 @@ docker run -it obsidia-router python -m app.cli             # interactive demo
 |---|---|---|
 | `FIREWORKS_API_KEY` | for live calls | Without it, level-3 decisions run in dry-run mode (route + token estimate, no network). |
 | `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. Scoring harnesses may override. |
-| `ALLOWED_MODELS` | no | Comma-separated model ladder, cheapest first. Overrides the default Llama 4 Scout → Llama 4 Maverick → DeepSeek V3 ladder (check the current serverless catalog at app.fireworks.ai/models). |
+| `ALLOWED_MODELS` | no | Comma-separated model ladder, cheapest first. Overrides the default gpt-oss-120b → GLM 5.1 → DeepSeek V4 Pro ladder (check the current serverless catalog via `GET /v1/models`). |
 
 ## Metrics
 
