@@ -89,6 +89,16 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         f"| Route accuracy | — | {report['route_accuracy']:.0%} | — |",
         f"| No-model resolution rate (level 0) | 0% | {s['level0_rate']:.0%} | — |",
     ]
+    if s["fireworks_tokens"]:
+        ratio = b["tokens"] / s["fireworks_tokens"]
+        lines.append(f"| Token savings ratio | 1x | — | **{ratio:.1f}x less** |")
+    if live and b.get("total_latency_s"):
+        base_avg = b["total_latency_s"] / b["remote_calls"]
+        obs_rows = report["tasks"]
+        obs_avg = sum(r["routing_latency_s"] for r in obs_rows) / len(obs_rows)
+        lines.append(f"| Avg end-to-end latency / task | {base_avg:.2f} s | "
+                     f"{obs_avg:.2f} s | {base_avg / obs_avg:.1f}x faster |"
+                     if obs_avg else "")
     if b.get("cost_usd") is not None or s.get("cost_usd") is not None:
         lines.append(f"| Cost (USD, {tok_label}) | {b.get('cost_usd')} | "
                      f"{s.get('cost_usd')} | — |")
@@ -189,6 +199,26 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         f"economic_scoring={bd['economic_scoring']}, "
         f"decision_authority={bd['decision_authority']} — {bd['status']}.",
         "This projection does not influence Track 1 scoring, routing, or gates.",
+        "",
+        "## Per-task trace (full pipeline output)",
+        "",
+        "Every request, compiled before any inference: intent / layer / action /",
+        "risk from the UnifiedInputIR, then gate verdict, inference level, route,",
+        "model and real token cost.",
+        "",
+        "| Task | Intent | Layer | Action | Risk | Gate | Lvl | Route | Tokens | Latency |",
+        "|---|---|---|---|---|---|---:|---|---:|---:|",
+    ]
+    for r in report["tasks"]:
+        model_short = (r["model"] or "—").split("/")[-1]
+        route_cell = r["actual_route"] + ("" if r["route_correct"] else " ⚠️")
+        if r["actual_route"] == "fireworks":
+            route_cell += f" ({model_short})"
+        lines.append(
+            f"| {r['id']} | {r['intent_type']} | {r['target_layer']} | "
+            f"{r['action_type']} | {r['risk_level']} | {r['gate']} | {r['level']} | "
+            f"{route_cell} | {r['fireworks_tokens']} | {r['routing_latency_s']}s |")
+    lines += [
         "",
         "## Reading",
         "",
@@ -297,14 +327,23 @@ def main() -> int:
                 "obsidia_verdict": OBSIDIA_VERDICT.get(decision["route"], decision["route"]),
             })
 
+        ir = decision["ir"]
+        rec = metrics.records[-1]
         rows.append({
             "id": task["id"],
+            "request": task["request"],
             "expected_route": task["expected_route"],
             "actual_route": decision["route"],
             "route_correct": ok,
+            "intent_type": ir["intent_type"],
+            "target_layer": ir["target_layer"],
+            "action_type": ir["action_type"],
+            "risk_level": ir["risk_level"],
             "level": decision["level"],
             "model": decision["model"],
             "gate": decision["gate"]["verdict"],
+            "fireworks_tokens": rec["fireworks_tokens"],
+            "remote_call_avoided": rec["remote_call_avoided"],
             "routing_latency_s": routing_latency,
         })
         mark = "OK " if ok else "FAIL"
