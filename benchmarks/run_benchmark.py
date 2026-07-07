@@ -39,6 +39,7 @@ from app.cli import load_memory_index, run_one  # noqa: E402
 from app.metrics.collector import MetricsCollector  # noqa: E402
 from app.router.decision import DEFAULT_MODEL_LADDER, decide  # noqa: E402
 from benchmarks.dynamic_cases import FAMILIES, SEED, check_case, generate_all  # noqa: E402
+from benchmarks.dynamic_cases_v2 import FAMILIES_V2, SEED_V2, check_case_v2, generate_all_v2  # noqa: E402
 from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa: E402
 from benchmarks.value_inputs import cognitive_value_inputs  # noqa: E402
 from benchmarks.path_quality import quality_axes  # noqa: E402
@@ -174,6 +175,35 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
     world_fams = [f for f in ("world_action", "destructive") if f in d["per_family"]]
     world_total = sum(d["per_family"][f]["cases"] for f in world_fams)
     world_held = sum(d["per_family"][f]["ok"] for f in world_fams)
+    d2 = report.get("dynamic_v2")
+    if d2:
+        lines += [
+            "",
+            "## Dynamic V2 dirty phase — bounded resistance to noisy inputs",
+            "",
+            f"Seeded dirty generator (seed {d2['seed']}): **{d2['generated_cases']} variations** "
+            "covering typos, franglais, apostrophes, noise, masked dangerous requests, "
+            "ultra-short ambiguity, Brody edges, and remote reasoning/code requests.",
+            "",
+            "| Family | Held | Routes observed |",
+            "|---|---:|---|",
+        ]
+        for fam, st in d2["per_family"].items():
+            routes = ", ".join(f"{k}={v}" for k, v in st["routes"].items())
+            lines.append(f"| {fam} | {st['ok']}/{st['cases']} | {routes} |")
+
+        lines += [
+            "",
+            f"**Dirty invariants held: {d2['invariants_held']}/{d2['generated_cases']} "
+            f"({d2['invariants_held_rate']:.0%})** — {d2['avg_decision_ms']} ms per decision, "
+            f"~{d2['decisions_per_second']} decisions/second.",
+            "",
+            "- Dirty V2 is separate from Dynamic V1; V1 remains the stable frame test.",
+            "- Brody identity edge allows CLARIFY or Brody in the public stub cut, but never remote escalation.",
+            "- HOLD / DENY / CLARIFY paths must not reach a model.",
+            "",
+        ]
+
     q = report.get("quality_axes", {})
     rq = q.get("route_quality", {})
     pq = q.get("path_quality", {})
@@ -351,11 +381,64 @@ def run_dynamic_phase(n_per_family: int, memory_index: dict) -> dict:
     }
 
 
+
+def run_dynamic_phase_v2(n_per_family: int, memory_index: dict) -> dict:
+    """Dirty generated variations through the deterministic pipeline. Zero tokens."""
+
+    cases = generate_all_v2(n_per_family)
+    per_family: dict[str, dict] = {}
+    failures: list[str] = []
+    t0 = time.perf_counter()
+
+    for case in cases:
+        decision = decide(case["request"], memory_index=memory_index)
+        verdict = check_case_v2(case, decision)
+        fam = per_family.setdefault(
+            case["family"],
+            {"cases": 0, "ok": 0, "routes": {}},
+        )
+        fam["cases"] += 1
+        fam["ok"] += verdict["ok"]
+        fam["routes"][decision["route"]] = fam["routes"].get(decision["route"], 0) + 1
+        if not verdict["ok"]:
+            failures.append(
+                f"{case['family']} | {case['request']} -> {verdict['failures']}"
+            )
+
+    elapsed = time.perf_counter() - t0
+    total = len(cases)
+    ok = sum(f["ok"] for f in per_family.values())
+
+    return {
+        "seed": SEED_V2,
+        "generated_cases": total,
+        "invariants_held": ok,
+        "invariants_held_rate": round(ok / total, 4) if total else 1.0,
+        "avg_decision_ms": round(elapsed / total * 1000, 3) if total else 0.0,
+        "decisions_per_second": round(total / elapsed) if elapsed else None,
+        "per_family": per_family,
+        "failures": failures[:20],
+        "focus": [
+            "typos",
+            "franglais",
+            "apostrophes",
+            "noise",
+            "masked dangerous requests",
+            "ultra-short ambiguity",
+            "brody edge",
+            "remote reasoning/code",
+        ],
+    }
+
+
 def main() -> int:
     live_baseline = "--live-baseline" in sys.argv
     n_dynamic = 30
     if "--dynamic" in sys.argv:
         n_dynamic = int(sys.argv[sys.argv.index("--dynamic") + 1])
+    n_dynamic_v2 = 20
+    if "--dynamic-v2" in sys.argv:
+        n_dynamic_v2 = int(sys.argv[sys.argv.index("--dynamic-v2") + 1])
     tasks = json.loads((ROOT / "benchmarks" / "tasks.json").read_text(encoding="utf-8"))
     memory_index = load_memory_index()
     metrics = MetricsCollector()
@@ -436,6 +519,7 @@ def main() -> int:
               f"tok={rec['fireworks_tokens']:<5} {routing_latency * 1000:.1f}ms")
 
     dynamic = run_dynamic_phase(n_dynamic, memory_index)
+    dynamic_v2 = run_dynamic_phase_v2(n_dynamic_v2, memory_index)
 
     summary = metrics.summary()
     captured = [r for r in governance_table if r["violation"] is not None]
@@ -480,6 +564,8 @@ def main() -> int:
             "avg_fireworks_call_s": avg_fw_latency,
             "dynamic_avg_decision_ms": dynamic["avg_decision_ms"],
             "dynamic_decisions_per_second": dynamic["decisions_per_second"],
+            "dynamic_v2_avg_decision_ms": dynamic_v2["avg_decision_ms"],
+            "dynamic_v2_decisions_per_second": dynamic_v2["decisions_per_second"],
         },
         "invariants": {
             "no_auto_act_respected": True,
@@ -490,6 +576,7 @@ def main() -> int:
                         "+ dynamic bounded tests below",
         },
         "dynamic": dynamic,
+        "dynamic_v2": dynamic_v2,
         "tasks": rows,
     }
     report["quality_axes"] = quality_axes(report)
@@ -515,6 +602,20 @@ def main() -> int:
           f"~{dynamic['decisions_per_second']} decisions/s")
     if dynamic["failures"]:
         for f in dynamic["failures"]:
+            print(f"  FAIL {f}")
+
+    print()
+    print(f"DYNAMIC DIRTY PHASE V2 (seed {dynamic_v2['seed']}, "
+          f"{dynamic_v2['generated_cases']} generated dirty variations, 0 tokens spent)")
+    for fam, st in dynamic_v2["per_family"].items():
+        routes = ", ".join(f"{k}={v}" for k, v in st["routes"].items())
+        print(f"  {fam:<24} {st['ok']}/{st['cases']} held ({routes})")
+    print(f"  dirty invariants held : {dynamic_v2['invariants_held']}/{dynamic_v2['generated_cases']} "
+          f"({dynamic_v2['invariants_held_rate']:.0%}) - "
+          f"{dynamic_v2['avg_decision_ms']} ms/decision, "
+          f"~{dynamic_v2['decisions_per_second']} decisions/s")
+    if dynamic_v2["failures"]:
+        for f in dynamic_v2["failures"]:
             print(f"  FAIL {f}")
 
     if governance_scored:
