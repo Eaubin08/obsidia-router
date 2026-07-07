@@ -41,6 +41,7 @@ from app.router.decision import DEFAULT_MODEL_LADDER, decide  # noqa: E402
 from benchmarks.dynamic_cases import FAMILIES, SEED, check_case, generate_all  # noqa: E402
 from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa: E402
 from benchmarks.value_inputs import cognitive_value_inputs  # noqa: E402
+from benchmarks.path_quality import quality_axes  # noqa: E402
 
 OBSIDIA_VERDICT = {
     "hold_commands_only": "HOLD / commands-only (0 tokens)",
@@ -153,6 +154,66 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
     world_fams = [f for f in ("world_action", "destructive") if f in d["per_family"]]
     world_total = sum(d["per_family"][f]["cases"] for f in world_fams)
     world_held = sum(d["per_family"][f]["ok"] for f in world_fams)
+    q = report.get("quality_axes", {})
+    rq = q.get("route_quality", {})
+    pq = q.get("path_quality", {})
+    eq = q.get("escalation_quality", {})
+    sp = q.get("speed_profile", {})
+
+    lines += [
+        "",
+        "## Quality axes — path, speed, escalation",
+        "",
+        "No global quality score is introduced. These axes expose existing benchmark facts.",
+        "",
+        "### Path quality",
+        "",
+        f"- Route match: **{rq.get('route_matches')}/{rq.get('tasks')}**",
+        f"- `route_correct=true`: **{rq.get('route_correct_true')}/{rq.get('tasks')}**",
+        f"- Level-0 model leaks: **{pq.get('level0_model_leaks')}** / {pq.get('level0_tasks')} level-0 tasks",
+        f"- HOLD / DENY / CLARIFY model leaks: **{pq.get('hold_deny_clarify_model_leaks')}** / {pq.get('hold_deny_clarify_tasks')} tasks",
+        f"- World-action model leaks: **{pq.get('world_action_model_leaks')}** / {pq.get('world_action_tasks')} tasks",
+        f"- Level 1/2 Fireworks token leaks: **{pq.get('level1_2_fireworks_token_leaks')}** / {pq.get('level1_2_tasks')} tasks",
+        "",
+        "### Escalation quality",
+        "",
+        f"- Fireworks expected / actual: **{eq.get('fireworks_expected')} / {eq.get('fireworks_actual')}**",
+        f"- Unnecessary Fireworks calls: **{eq.get('unnecessary_fireworks_calls')}**",
+        f"- Fireworks calls under ALLOW gate: **{eq.get('fireworks_only_on_allow')}/{eq.get('fireworks_actual')}**",
+        f"- Level-0 Fireworks token leaks: **{eq.get('level0_fireworks_token_leaks')}**",
+        f"- Fireworks tokens outside Fireworks rows: **{eq.get('tokens_off_fireworks_rows')}**",
+        "",
+        "### Speed profile by level",
+        "",
+        "| Level | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |",
+        "|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for level, st in sorted(
+        sp.get("by_level_ms", {}).items(),
+        key=lambda kv: int(kv[0]) if str(kv[0]).isdigit() else 99,
+    ):
+        lines.append(
+            f"| {level} | {st['n']} | {st['avg']} | {st['p50']} | {st['p95']} | {st['p99']} | {st['max']} |"
+        )
+
+    lines += [
+        "",
+        "### Speed profile by route",
+        "",
+        "| Route | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for route, st in sorted(sp.get("by_route_ms", {}).items()):
+        lines.append(
+            f"| {route} | {st['n']} | {st['avg']} | {st['p50']} | {st['p95']} | {st['p99']} | {st['max']} |"
+        )
+
+    lines += [
+        "",
+        f"- Dynamic throughput: **{sp.get('dynamic_avg_decision_ms')} ms/decision**, ~**{sp.get('dynamic_decisions_per_second')} decisions/s**",
+        f"- Remote/local latency ratio: **{sp.get('remote_local_latency_ratio')}x** when both live remote latency and local latency are available",
+        "",
+    ]
     lines += [
         "",
         f"**Invariants held: {d['invariants_held']}/{d['generated_cases']} "
@@ -411,6 +472,7 @@ def main() -> int:
         "dynamic": dynamic,
         "tasks": rows,
     }
+    report["quality_axes"] = quality_axes(report)
     report["cognitive_value_inputs"] = cognitive_value_inputs(report)
     out_dir = ROOT / "results"
     out_dir.mkdir(exist_ok=True)
@@ -447,6 +509,22 @@ def main() -> int:
                   f"obsidia={row['obsidia_verdict']}")
 
     print()
+    q = report["quality_axes"]
+    rq = q["route_quality"]
+    pq = q["path_quality"]
+    eq = q["escalation_quality"]
+    sp = q["speed_profile"]
+    print()
+    print("QUALITY AXES (path / speed / escalation — no global score)")
+    print(f"  route_match              : {rq['route_matches']}/{rq['tasks']}")
+    print(f"  level0_model_leaks       : {pq['level0_model_leaks']}")
+    print(f"  hold/deny/clarify leaks  : {pq['hold_deny_clarify_model_leaks']}")
+    print(f"  world_action leaks       : {pq['world_action_model_leaks']}")
+    print(f"  fireworks expected/actual: {eq['fireworks_expected']}/{eq['fireworks_actual']}")
+    print(f"  unnecessary fireworks    : {eq['unnecessary_fireworks_calls']}")
+    print(f"  level0 token leaks       : {eq['level0_fireworks_token_leaks']}")
+    print(f"  dynamic speed            : {sp['dynamic_avg_decision_ms']} ms/decision, ~{sp['dynamic_decisions_per_second']} decisions/s")
+
     print("COGNITIVE VALUE INPUTS (readonly projection — no scoring, no emission)")
     cvi = report["cognitive_value_inputs"]
     for group in ("avoided_inference", "frame_stability", "time_cost", "control"):

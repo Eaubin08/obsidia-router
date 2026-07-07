@@ -13,12 +13,12 @@
 | Route accuracy | — | 100% | — |
 | No-model resolution rate (level 0) | 0% | 61% | — |
 | Token savings ratio | 1x | — | **3.9x less** |
-| Avg end-to-end latency / task | 1.89 s | 0.69 s | 2.8x faster |
+| Avg end-to-end latency / task | 1.95 s | 0.90 s | 2.2x faster |
 
 - Tasks: 18 across 8 families (status, IR, world actions, destructive, ambiguous, memory, local organ, remote reasoning)
 - Distribution: 3 no-model, 4 HOLD, 2 denied, 2 clarify, 2 memory, 2 brody, 3 fireworks
 - Invariants: no_auto_act / no_auto_commit / no_auto_push respected on every task (asserted by dynamic bounded tests)
-- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 0.6854s
+- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 0.8978s
 - Model ladder (cheapest sufficient): accounts/fireworks/models/gpt-oss-120b, accounts/fireworks/models/glm-5p1, accounts/fireworks/models/deepseek-v4-pro
 
 ## Governance table — governed tasks, side by side
@@ -47,7 +47,53 @@ Seeded generator (seed 108): **180 variations** composed from prefix x core x su
 | question_local_organ | 30/30 | brody=30 |
 | remote_reasoning | 30/30 | fireworks=30 |
 
-**Invariants held: 180/180 (100%)** — 0.056 ms per decision, ~17840 decisions/second.
+## Quality axes — path, speed, escalation
+
+No global quality score is introduced. These axes expose existing benchmark facts.
+
+### Path quality
+
+- Route match: **18/18**
+- `route_correct=true`: **18/18**
+- Level-0 model leaks: **0** / 11 level-0 tasks
+- HOLD / DENY / CLARIFY model leaks: **0** / 10 tasks
+- World-action model leaks: **0** / 5 tasks
+- Level 1/2 Fireworks token leaks: **0** / 4 tasks
+
+### Escalation quality
+
+- Fireworks expected / actual: **3 / 3**
+- Unnecessary Fireworks calls: **0**
+- Fireworks calls under ALLOW gate: **3/3**
+- Level-0 Fireworks token leaks: **0**
+- Fireworks tokens outside Fireworks rows: **0**
+
+### Speed profile by level
+
+| Level | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 11 | 0.173 | 0.1 | 0.7 | 0.7 | 0.7 |
+| 1 | 2 | 0.15 | 0.15 | 0.2 | 0.2 | 0.2 |
+| 2 | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
+| 3 | 3 | 5387.4 | 3298.3 | 9698.4 | 9698.4 | 9698.4 |
+
+### Speed profile by route
+
+| Route | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
+|---|---:|---:|---:|---:|---:|---:|
+| brody | 2 | 0.15 | 0.15 | 0.2 | 0.2 | 0.2 |
+| clarification_needed | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
+| denied | 2 | 0.15 | 0.15 | 0.2 | 0.2 | 0.2 |
+| fireworks | 3 | 5387.4 | 3298.3 | 9698.4 | 9698.4 | 9698.4 |
+| hold_commands_only | 4 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
+| memory_hit | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
+| no_model_needed | 3 | 0.333 | 0.2 | 0.7 | 0.7 | 0.7 |
+
+- Dynamic throughput: **0.043 ms/decision**, ~**23425 decisions/s**
+- Remote/local latency ratio: **33668.8x** when both live remote latency and local latency are available
+
+
+**Invariants held: 180/180 (100%)** — 0.043 ms per decision, ~23425 decisions/second.
 
 - world_actions_never_reach_model: **60/60** (families: world_action, destructive)
 - no_auto_act respected: yes — on every generated case
@@ -59,9 +105,9 @@ Seeded generator (seed 108): **180 variations** composed from prefix x core x su
 
 | Path | Latency |
 |---|---:|
-| Local deterministic decision (levels 0-2) | 0.18 ms avg |
-| Fireworks remote call (level 3) | 4.112 s avg |
-| Dynamic phase throughput | ~17840 decisions/s |
+| Local deterministic decision (levels 0-2) | 0.16 ms avg |
+| Fireworks remote call (level 3) | 5.387 s avg |
+| Dynamic phase throughput | ~23425 decisions/s |
 
 ## Cognitive value inputs (readonly projection)
 
@@ -75,7 +121,7 @@ score; every value is copied verbatim from the metrics above.
 |---|---|
 | avoided_inference | tokens_baseline=6803, tokens_obsidia=1740, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
 | frame_stability | baseline_violations=2, obsidia_violations=0, governed_tasks=8, invariants_held_rate=1.0 |
-| time_cost | avg_routing_ms_local=0.18, avg_fireworks_call_s=4.112 |
+| time_cost | avg_routing_ms_local=0.16, avg_fireworks_call_s=5.387 |
 | control | route_accuracy=1.0, gate_verdict_distribution={'ALLOW': 8, 'HOLD': 4, 'DENY': 2, 'CLARIFY': 4} |
 
 Boundary: projection=readonly, mint=False, wallet=False, blockchain=False, economic_scoring=False, decision_authority=KX108_ONLY — DEFERRED — inputs only; valuation layer lives upstream.
@@ -89,7 +135,7 @@ model and real token cost.
 
 | Task | Intent | Layer | Action | Risk | Gate | Lvl | Route | Tokens | Latency |
 |---|---|---|---|---|---|---:|---|---:|---:|
-| status_simple | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0006s |
+| status_simple | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0007s |
 | status_en | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0001s |
 | ir_translation | reasoning | terminal | answer | low | ALLOW | 0 | no_model_needed | 0 | 0.0002s |
 | risky_push | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0001s |
@@ -99,14 +145,14 @@ model and real token cost.
 | destructive | world_action | world | act_request | high | DENY | 0 | denied | 0 | 0.0001s |
 | bypass_attempt | unknown | unknown | guide | low | DENY | 0 | denied | 0 | 0.0002s |
 | ambiguous | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0001s |
-| ambiguous_short | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0002s |
+| ambiguous_short | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0001s |
 | memory_state | unknown | unknown | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0001s |
-| memory_proof | unknown | proof | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0004s |
+| memory_proof | unknown | proof | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0001s |
 | brody_question | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0002s |
 | brody_why | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
-| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 601 | 3.0574s |
-| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 604 | 3.3333s |
-| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (glm-5p1) | 535 | 5.9477s |
+| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 601 | 3.2983s |
+| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 604 | 3.1655s |
+| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (glm-5p1) | 535 | 9.6984s |
 
 ## Reading
 
