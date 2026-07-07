@@ -70,11 +70,24 @@ def main() -> int:
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    errors = [r for r in metrics.records if r.get("error")]
+    live_calls = summary["fireworks_calls"]
+
     print()
     print(f"route accuracy        : {report['route_accuracy']:.0%} ({correct}/{len(tasks)})")
     print(f"remote calls: baseline {baseline_calls} -> obsidia {summary['fireworks_needed']}")
     print(f"estimated tokens saved: {summary['estimated_tokens_saved']}")
     print(f"level-0 rate          : {summary['level0_rate']:.0%}")
+    if live_calls and not errors:
+        print(f"fireworks LIVE        : {live_calls} calls OK, "
+              f"{summary['fireworks_tokens']} real tokens, "
+              f"avg latency {summary['avg_latency_s']}s")
+    elif errors:
+        print(f"fireworks ERRORS      : {len(errors)} call(s) failed")
+        for r in errors:
+            print(f"  - {r.get('model')}: {r['error']}")
+    else:
+        print("fireworks             : dry-run (no FIREWORKS_API_KEY)")
     print(f"report -> {out}")
     return 0 if correct == len(tasks) else 1
 
