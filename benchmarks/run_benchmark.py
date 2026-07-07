@@ -43,6 +43,7 @@ from benchmarks.dynamic_cases_v2 import FAMILIES_V2, SEED_V2, check_case_v2, gen
 from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa: E402
 from benchmarks.value_inputs import cognitive_value_inputs  # noqa: E402
 from benchmarks.path_quality import quality_axes  # noqa: E402
+from benchmarks.random_dynamic import generate_random_batches  # noqa: E402
 
 OBSIDIA_VERDICT = {
     "hold_commands_only": "HOLD / commands-only (0 tokens)",
@@ -201,6 +202,38 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
             "- Dirty V2 is separate from Dynamic V1; V1 remains the stable frame test.",
             "- Brody identity edge allows CLARIFY or Brody in the public stub cut, but never remote escalation.",
             "- HOLD / DENY / CLARIFY paths must not reach a model.",
+            "",
+        ]
+
+    rd = report.get("random_dynamic")
+    if rd:
+        lines += [
+            "",
+            "## Random dynamic batches - replayable stochastic exploration",
+            "",
+            f"Random batches: **{rd['generated_cases']} generated cases** across "
+            f"{rd['num_batches']} batches of {rd['batch_size']} cases.",
+            f"Base seed: `{rd['base_seed']}`.",
+            "",
+            "| Batch | Seed | Held | Routes observed |",
+            "|---:|---:|---:|---|",
+        ]
+        for batch in rd["batches"]:
+            routes = ", ".join(f"{k}={v}" for k, v in batch["routes"].items())
+            lines.append(
+                f"| {batch['batch_id']} | {batch['seed']} | "
+                f"{batch['ok']}/{batch['cases']} | {routes} |"
+            )
+
+        lines += [
+            "",
+            f"**Random invariants held: {rd['invariants_held']}/{rd['generated_cases']} "
+            f"({rd['invariants_held_rate']:.0%})** - {rd['avg_decision_ms']} ms per decision, "
+            f"~{rd['decisions_per_second']} decisions/second.",
+            "",
+            f"Replay: `{rd['replay']}`",
+            "",
+            "Random batches are exploratory. V1/V2 remain the stable reproducible suites.",
             "",
         ]
 
@@ -431,6 +464,75 @@ def run_dynamic_phase_v2(n_per_family: int, memory_index: dict) -> dict:
     }
 
 
+
+def run_random_dynamic_batches(
+    num_batches: int,
+    batch_size: int,
+    base_seed: int | None,
+    memory_index: dict,
+) -> dict:
+    """Random dirty batches through the deterministic pipeline. Zero tokens."""
+
+    from benchmarks.dynamic_cases_v2 import check_case_v2
+
+    plan = generate_random_batches(num_batches, batch_size, base_seed=base_seed)
+    failures: list[str] = []
+    total = 0
+    ok = 0
+    batch_rows = []
+    t0 = time.perf_counter()
+
+    for batch in plan["batches"]:
+        batch_ok = 0
+        routes: dict[str, int] = {}
+        families: dict[str, int] = {}
+
+        for case in batch["cases"]:
+            decision = decide(case["request"], memory_index=memory_index)
+            verdict = check_case_v2(case, decision)
+
+            total += 1
+            ok += verdict["ok"]
+            batch_ok += verdict["ok"]
+            routes[decision["route"]] = routes.get(decision["route"], 0) + 1
+            families[case["family"]] = families.get(case["family"], 0) + 1
+
+            if not verdict["ok"]:
+                failures.append(
+                    f"batch={batch['batch_id']} seed={batch['seed']} "
+                    f"case={case['case_id']} {case['family']} | "
+                    f"{case['request']} -> {verdict['failures']}"
+                )
+
+        batch_rows.append({
+            "batch_id": batch["batch_id"],
+            "seed": batch["seed"],
+            "cases": len(batch["cases"]),
+            "ok": batch_ok,
+            "routes": routes,
+            "families": families,
+        })
+
+    elapsed = time.perf_counter() - t0
+
+    return {
+        "base_seed": plan["base_seed"],
+        "num_batches": num_batches,
+        "batch_size": batch_size,
+        "generated_cases": total,
+        "invariants_held": ok,
+        "invariants_held_rate": round(ok / total, 4) if total else 1.0,
+        "avg_decision_ms": round(elapsed / total * 1000, 3) if total else 0.0,
+        "decisions_per_second": round(total / elapsed) if elapsed else None,
+        "batches": batch_rows,
+        "failures": failures[:20],
+        "replay": (
+            f"python benchmarks/run_benchmark.py --random-batches {num_batches} "
+            f"--random-batch-size {batch_size} --random-seed {plan['base_seed']}"
+        ),
+    }
+
+
 def main() -> int:
     live_baseline = "--live-baseline" in sys.argv
     n_dynamic = 30
@@ -439,6 +541,15 @@ def main() -> int:
     n_dynamic_v2 = 20
     if "--dynamic-v2" in sys.argv:
         n_dynamic_v2 = int(sys.argv[sys.argv.index("--dynamic-v2") + 1])
+    n_random_batches = 0
+    random_batch_size = 40
+    random_seed = None
+    if "--random-batches" in sys.argv:
+        n_random_batches = int(sys.argv[sys.argv.index("--random-batches") + 1])
+    if "--random-batch-size" in sys.argv:
+        random_batch_size = int(sys.argv[sys.argv.index("--random-batch-size") + 1])
+    if "--random-seed" in sys.argv:
+        random_seed = int(sys.argv[sys.argv.index("--random-seed") + 1])
     tasks = json.loads((ROOT / "benchmarks" / "tasks.json").read_text(encoding="utf-8"))
     memory_index = load_memory_index()
     metrics = MetricsCollector()
@@ -520,6 +631,14 @@ def main() -> int:
 
     dynamic = run_dynamic_phase(n_dynamic, memory_index)
     dynamic_v2 = run_dynamic_phase_v2(n_dynamic_v2, memory_index)
+    random_dynamic = None
+    if n_random_batches:
+        random_dynamic = run_random_dynamic_batches(
+            n_random_batches,
+            random_batch_size,
+            random_seed,
+            memory_index,
+        )
 
     summary = metrics.summary()
     captured = [r for r in governance_table if r["violation"] is not None]
@@ -577,6 +696,7 @@ def main() -> int:
         },
         "dynamic": dynamic,
         "dynamic_v2": dynamic_v2,
+        "random_dynamic": random_dynamic,
         "tasks": rows,
     }
     report["quality_axes"] = quality_axes(report)
@@ -617,6 +737,24 @@ def main() -> int:
     if dynamic_v2["failures"]:
         for f in dynamic_v2["failures"]:
             print(f"  FAIL {f}")
+
+    if random_dynamic:
+        print()
+        print(f"RANDOM DYNAMIC BATCHES (base seed {random_dynamic['base_seed']}, "
+              f"{random_dynamic['generated_cases']} cases, 0 tokens spent)")
+        for batch in random_dynamic["batches"]:
+            routes = ", ".join(f"{k}={v}" for k, v in batch["routes"].items())
+            print(f"  batch {batch['batch_id']:<2} seed={batch['seed']} "
+                  f"{batch['ok']}/{batch['cases']} held ({routes})")
+        print(f"  random invariants held: "
+              f"{random_dynamic['invariants_held']}/{random_dynamic['generated_cases']} "
+              f"({random_dynamic['invariants_held_rate']:.0%}) - "
+              f"{random_dynamic['avg_decision_ms']} ms/decision, "
+              f"~{random_dynamic['decisions_per_second']} decisions/s")
+        print(f"  replay: {random_dynamic['replay']}")
+        if random_dynamic["failures"]:
+            for f in random_dynamic["failures"]:
+                print(f"  FAIL {f}")
 
     if governance_scored:
         print()
