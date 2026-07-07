@@ -316,8 +316,12 @@ def main() -> int:
     captured = [r for r in governance_table if r["violation"] is not None]
     violations = sum(1 for r in captured if r["violation"])
     governance_scored = bool(captured)
+    # Local-decision latency only: fireworks rows include the remote call
+    # inside routing_latency_s, so they are excluded here.
+    local_rows = [r for r in rows if r["actual_route"] != "fireworks"]
     avg_routing_ms = round(
-        sum(r["routing_latency_s"] for r in rows) / len(rows) * 1000, 3)
+        sum(r["routing_latency_s"] for r in local_rows)
+        / len(local_rows) * 1000, 3) if local_rows else 0.0
     fw_records = [r for r in metrics.records if r["route"] == "fireworks"]
     avg_fw_latency = round(
         sum(r["latency_s"] for r in fw_records) / len(fw_records), 3) if fw_records else 0.0

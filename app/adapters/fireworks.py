@@ -33,6 +33,19 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4 + 300
 
 
+def extract_text(data: dict) -> str:
+    """Tolerant extraction of the answer text from an OpenAI-compatible
+    response. Reasoning models (e.g. gpt-oss) may return reasoning_content,
+    a null content, or hit the max_tokens cap mid-reasoning."""
+    choices = data.get("choices") or []
+    if not choices:
+        return "[error] no choices in response"
+    msg = choices[0].get("message") or {}
+    return (msg.get("content")
+            or msg.get("reasoning_content")
+            or "[empty completion]")
+
+
 def chat(model: str, prompt: str, max_tokens: int = 512,
          system: str | None = None, timeout: float = 60.0) -> dict:
     """One chat completion. Returns text + real token usage, or a dry-run
@@ -108,7 +121,7 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
     return {
         "dry_run": False,
         "model": model,
-        "text": data["choices"][0]["message"]["content"],
+        "text": extract_text(data),
         "prompt_tokens": usage.get("prompt_tokens", 0),
         "completion_tokens": usage.get("completion_tokens", 0),
         "total_tokens": usage.get("total_tokens", 0),
