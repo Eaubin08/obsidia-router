@@ -69,9 +69,17 @@ python benchmarks/run_benchmark.py --dynamic 100   # 600 generated cases
 
 ```bash
 docker build -t obsidia-router .
-docker run obsidia-router                                   # benchmark, dry-run
-docker run -e FIREWORKS_API_KEY=... obsidia-router          # live Fireworks calls
-docker run -it obsidia-router python -m app.cli             # interactive demo
+
+# Official harness mode (default CMD): requires /input and /output mounts.
+# Reads /input/tasks.json, writes /output/results.json.
+docker run -e FIREWORKS_API_KEY=... \
+  -v /host/input:/input -v /host/output:/output obsidia-router
+
+# Local dev: benchmark dry-run (no mounts, no credentials needed)
+docker run obsidia-router python benchmarks/run_benchmark.py
+
+# Interactive demo
+docker run -it obsidia-router python -m app.cli
 ```
 
 ## Environment variables

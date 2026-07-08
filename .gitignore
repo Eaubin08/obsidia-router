@@ -4,3 +4,7 @@ __pycache__/
 .env
 results/*.json
 !results/.gitkeep
+
+# Local-only artifacts (audits, fixtures, official harness IO) - never submit
+.local_*/
+.local_*

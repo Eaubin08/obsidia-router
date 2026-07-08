@@ -117,6 +117,11 @@ def build_ir(raw: str) -> dict:
             target_layer = "brody"
     else:
         intent_type, action_type, risk_level = "unknown", "guide", "low"
+        if target_layer == "brody":
+            # An unresolved verb aimed at the brody layer is semantic work
+            # for the local organ (capabilities, context, rephrasing) — not
+            # a CLARIFY dead-end. Keeps brody reachable without a keyword hit.
+            intent_type, action_type = "question", "answer"
 
     needs = {
         "local_structure": True,
