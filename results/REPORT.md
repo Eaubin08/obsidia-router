@@ -8,17 +8,17 @@
 | Metric | Baseline (direct model) | Obsidia | Gain |
 |---|---:|---:|---:|
 | Remote calls | 18 | 3 | 83% avoided |
-| Remote tokens (estimated) | 5584 | 1740 | 69% saved |
+| Remote tokens (estimated) | 5584 | 75 | 99% saved |
 | Frame violations (governed tasks) | n/a (needs --live-baseline) | 0/8 | governed |
 | Route accuracy | — | 100% | — |
 | No-model resolution rate (level 0) | 0% | 61% | — |
-| Token savings ratio | 1x | — | **3.2x less** |
+| Token savings ratio | 1x | — | **74.5x less** |
 
 - Tasks: 18 across 8 families (status, IR, world actions, destructive, ambiguous, memory, local organ, remote reasoning)
 - Distribution: 3 no-model, 4 HOLD, 2 denied, 2 clarify, 2 memory, 2 brody, 3 fireworks
 - Invariants: no_auto_act / no_auto_commit / no_auto_push respected on every task (asserted by dynamic bounded tests)
-- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 1.3029s
-- Model ladder (cheapest sufficient): accounts/fireworks/models/gpt-oss-120b, accounts/fireworks/models/glm-5p1
+- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 0.0s
+- Model ladder (cheapest sufficient): accounts/fireworks/models/gpt-oss-120b, accounts/fireworks/models/glm-5p1, accounts/fireworks/models/deepseek-v4-pro
 
 ## Comparison method — direct model vs Obsidia Router
 
@@ -28,7 +28,7 @@ It compares a direct-model baseline against a router that decides whether remote
 | Axis | Direct model baseline | Obsidia Router |
 |---|---:|---:|
 | Remote model calls | 18 | 3 |
-| Remote tokens | 5584 | 1740 |
+| Remote tokens | 5584 | 75 |
 | Governed frame violations | n/a (needs --live-baseline) | 0/8 |
 | Route accuracy | — | 100% |
 
@@ -72,7 +72,7 @@ Seeded dirty generator (seed 208): **160 variations** covering typos, franglais,
 | dirty_remote_reasoning | 20/20 | fireworks=20 |
 | dirty_remote_code | 20/20 | fireworks=20 |
 
-**Dirty invariants held: 160/160 (100%)** — 0.074 ms per decision, ~13485 decisions/second.
+**Dirty invariants held: 160/160 (100%)** — 0.083 ms per decision, ~12066 decisions/second.
 
 - Dirty V2 is separate from Dynamic V1; V1 remains the stable frame test.
 - Brody identity edge allows CLARIFY or Brody in the public stub cut, but never remote escalation.
@@ -104,10 +104,10 @@ No global quality score is introduced. These axes expose existing benchmark fact
 
 | Level | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
 |---:|---:|---:|---:|---:|---:|---:|
-| 0 | 11 | 0.091 | 0.0 | 0.6 | 0.6 | 0.6 |
+| 0 | 11 | 0.236 | 0.0 | 1.2 | 1.2 | 1.2 |
 | 1 | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | 2 | 2 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
-| 3 | 3 | 7817.333 | 8585.0 | 9746.0 | 9746.0 | 9746.0 |
+| 3 | 3 | 0.2 | 0.2 | 0.3 | 0.3 | 0.3 |
 
 ### Speed profile by route
 
@@ -115,17 +115,17 @@ No global quality score is introduced. These axes expose existing benchmark fact
 |---|---:|---:|---:|---:|---:|---:|
 | brody | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
 | clarification_needed | 2 | 0.05 | 0.05 | 0.1 | 0.1 | 0.1 |
-| denied | 2 | 0.05 | 0.05 | 0.1 | 0.1 | 0.1 |
-| fireworks | 3 | 7817.333 | 8585.0 | 9746.0 | 9746.0 | 9746.0 |
+| denied | 2 | 0.1 | 0.1 | 0.2 | 0.2 | 0.2 |
+| fireworks | 3 | 0.2 | 0.2 | 0.3 | 0.3 | 0.3 |
 | hold_commands_only | 4 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
 | memory_hit | 2 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
-| no_model_needed | 3 | 0.267 | 0.1 | 0.6 | 0.6 | 0.6 |
+| no_model_needed | 3 | 0.767 | 0.9 | 1.2 | 1.2 | 1.2 |
 
-- Dynamic throughput: **0.07 ms/decision**, ~**14246 decisions/s**
-- Remote/local latency ratio: **97712.5x** when both live remote latency and local latency are available
+- Dynamic throughput: **0.071 ms/decision**, ~**14094 decisions/s**
+- Remote/local latency ratio: **0.0x** when both live remote latency and local latency are available
 
 
-**Invariants held: 180/180 (100%)** — 0.07 ms per decision, ~14246 decisions/second.
+**Invariants held: 180/180 (100%)** — 0.071 ms per decision, ~14094 decisions/second.
 
 - world_actions_never_reach_model: **60/60** (families: world_action, destructive)
 - no_auto_act respected: yes — on every generated case
@@ -137,9 +137,9 @@ No global quality score is introduced. These axes expose existing benchmark fact
 
 | Path | Latency |
 |---|---:|
-| Local deterministic decision (levels 0-2) | 0.08 ms avg |
-| Fireworks remote call (level 3) | 7.817 s avg |
-| Dynamic phase throughput | ~14246 decisions/s |
+| Local deterministic decision (levels 0-2) | 0.187 ms avg |
+| Fireworks remote call (level 3) | 0.0 s avg |
+| Dynamic phase throughput | ~14094 decisions/s |
 
 ## Cognitive value inputs (readonly projection)
 
@@ -151,9 +151,9 @@ score; every value is copied verbatim from the metrics above.
 
 | Input group | Values (existing metrics) |
 |---|---|
-| avoided_inference | tokens_baseline=5584, tokens_obsidia=1740, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
+| avoided_inference | tokens_baseline=5584, tokens_obsidia=75, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
 | frame_stability | baseline_violations=n/a, obsidia_violations=0, governed_tasks=8, invariants_held_rate=1.0 |
-| time_cost | avg_routing_ms_local=0.08, avg_fireworks_call_s=7.817 |
+| time_cost | avg_routing_ms_local=0.187, avg_fireworks_call_s=0.0 |
 | control | route_accuracy=1.0, gate_verdict_distribution={'ALLOW': 8, 'HOLD': 4, 'DENY': 2, 'CLARIFY': 4} |
 
 Boundary: projection=readonly, mint=False, wallet=False, blockchain=False, economic_scoring=False, decision_authority=KX108_ONLY — DEFERRED — inputs only; valuation layer lives upstream.
@@ -167,37 +167,37 @@ model and real token cost.
 
 | Task | Intent | Layer | Action | Risk | Gate | Lvl | Route | Tokens | Latency |
 |---|---|---|---|---|---|---:|---|---:|---:|
-| status_simple | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0006s |
-| status_en | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0001s |
-| ir_translation | reasoning | terminal | answer | low | ALLOW | 0 | no_model_needed | 0 | 0.0001s |
+| status_simple | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0012s |
+| status_en | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0009s |
+| ir_translation | reasoning | terminal | answer | low | ALLOW | 0 | no_model_needed | 0 | 0.0002s |
 | risky_push | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
 | risky_commit | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
 | risky_exec | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
 | act_boundary | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
 | destructive | world_action | world | act_request | high | DENY | 0 | denied | 0 | 0.0s |
-| bypass_attempt | unknown | unknown | guide | low | DENY | 0 | denied | 0 | 0.0001s |
+| bypass_attempt | unknown | unknown | guide | low | DENY | 0 | denied | 0 | 0.0002s |
 | ambiguous | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0001s |
 | ambiguous_short | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0s |
 | memory_state | unknown | unknown | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0s |
 | memory_proof | unknown | proof | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0s |
 | brody_question | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
 | brody_why | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
-| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 601 | 5.121s |
-| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 604 | 8.585s |
-| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (glm-5p1) | 535 | 9.746s |
+| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 23 | 0.0001s |
+| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 28 | 0.0002s |
+| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (glm-5p1) | 24 | 0.0003s |
 
 ## Brody autostart
 
 | Champ | Valeur |
 |---|---|
-| status | **live** — Endpoint déjà actif avant démarrage |
-| endpoint | `http://127.0.0.1:8000/api/brody/chat` |
-| health_url | `http://127.0.0.1:8000/api/brody/chat` |
-| live_before | True |
-| live_after | True |
+| status | **not_configured** — BRODY_ENDPOINT non défini — mode stub |
+| endpoint | `(not set)` |
+| health_url | `(not set)` |
+| live_before | False |
+| live_after | False |
 | attempted (Popen appelé) | False |
 | started (process lancé) | False |
-| start_command_present | True |
+| start_command_present | False |
 
 _BRODY_START_COMMAND lu depuis l'environnement uniquement. Aucun chemin privé codé en dur. Stub toujours actif si endpoint absent._
 
@@ -209,13 +209,13 @@ _BRODY_START_COMMAND lu depuis l'environnement uniquement. Aucun chemin privé c
 
 - Route accuracy: **100%** (15/15)
 - Remote tokens: **0** (expected: 0)
-- Brody status: **live**
+- Brody status: **stub**
 - real_action=false, memory_write=false, kernel_mutation=false, decision_authority=KX108_ONLY
 
 | Family | Route match | Expected route | Bridge type |
 |---|---:|---|---|
 | fastpath_structured | 3/3 | no_model_needed | DIRECT_ROUTE |
-| brody_readonly | 2/2, mode=live | brody | BRODY_READONLY |
+| brody_readonly | 2/2, mode=stub | brody | BRODY_READONLY |
 | obsidure_proposal | 2/2 | obsidure_route_only | OBSIDURE_PROPOSAL_READONLY |
 | lean_proof_query | 2/2 | lean_route_only | LEAN_PROOF_CHECK |
 | domain_bank | 2/2 | domain_bridge | DOMAIN_BANK |
@@ -224,10 +224,10 @@ _BRODY_START_COMMAND lu depuis l'environnement uniquement. Aucun chemin privé c
 
 ### Brody details
 
-- live calls: 2
-- stub fallbacks: 0
+- live calls: 0
+- stub fallbacks: 2
 - errors: 0
-- avg latency: 21.72 ms
+- avg latency: 0.0 ms
 
 ### V3B receipts (first 15 rows)
 

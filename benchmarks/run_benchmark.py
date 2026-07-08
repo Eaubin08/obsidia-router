@@ -926,6 +926,10 @@ def main() -> int:
     run_stack_v3b = "--stack-v3b" in sys.argv
     require_brody_live = "--require-brody-live" in sys.argv
     auto_start_brody = "--auto-start-brody" in sys.argv
+    track1_official = "--track1-official" in sys.argv
+    tasks_file = None
+    if "--tasks-file" in sys.argv:
+        tasks_file = sys.argv[sys.argv.index("--tasks-file") + 1]
     stack_seed = 808
     if "--stack-seed" in sys.argv:
         stack_seed = int(sys.argv[sys.argv.index("--stack-seed") + 1])
@@ -954,6 +958,7 @@ def main() -> int:
     baseline_model = ladder[0]
 
     rows, correct = [], 0
+    _track1_rows: list[dict] = []  # enriched rows for --track1-official
     baseline_tokens = baseline_calls = 0
     baseline_in_tok = baseline_out_tok = 0
     baseline_latency = 0.0
@@ -1018,6 +1023,27 @@ def main() -> int:
             "remote_call_avoided": rec["remote_call_avoided"],
             "routing_latency_s": routing_latency,
         })
+        if track1_official:
+            _track1_rows.append({
+                "id": task["id"],
+                "request": task["request"],
+                "expected_route": task["expected_route"],
+                "actual_route": decision["route"],
+                "route_correct": ok,
+                "gate_verdict": decision["gate"]["verdict"],
+                "gate_matched": decision["gate"].get("matched"),
+                "level": decision["level"],
+                "model": decision["model"],
+                "intent_type": ir["intent_type"],
+                "target_layer": ir["target_layer"],
+                "missing": ir.get("missing", []),
+                "fireworks_tokens": rec["fireworks_tokens"],
+                "remote_call_avoided": rec["remote_call_avoided"],
+                "routing_latency_ms": round(routing_latency * 1000, 2),
+                "output": decision.get("output", ""),
+                "memory_entry": decision.get("memory_entry"),
+                "topic_name": decision.get("topic", {}).get("topic", "general"),
+            })
         mark = "OK " if ok else "FAIL"
         model_short = (decision["model"] or "-").split("/")[-1]
         print(f"[{mark}] {task['id']:<22} "
@@ -1276,6 +1302,22 @@ def main() -> int:
         print(f"  real_action=false, memory_write=false, kernel_mutation=false, KX108_ONLY")
         if require_brody_live and not sv["brody_live_ok"]:
             print("  WARNING: --require-brody-live set but Brody endpoint not live")
+
+    if track1_official and _track1_rows:
+        from benchmarks.track1_runner import write_track1
+        t1 = write_track1(
+            _track1_rows,
+            out_dir,
+            extra={"obsidia_summary": summary, "model_ladder": ladder},
+        )
+        print()
+        print("TRACK 1 OFFICIAL")
+        print(f"  results    -> {t1['results_path']}")
+        print(f"  receipts   -> {t1['receipts_path']}")
+        print(f"  tasks      : {t1['total_tasks']}")
+        print(f"  accuracy   : {t1['route_accuracy']:.0%}")
+        print(f"  tokens used: {t1['tokens_used_total']}")
+        print(f"  remote calls: {t1['remote_calls']}/{t1['total_tasks']}")
 
     print()
     print(f"route accuracy        : {report['route_accuracy']:.0%} ({correct}/{len(tasks)})")
