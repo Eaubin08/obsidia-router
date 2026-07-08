@@ -8,6 +8,13 @@ Environment:
   FIREWORKS_BASE_URL  default https://api.fireworks.ai/inference/v1
   ALLOWED_MODELS      optional comma-separated ladder, cheapest first;
                       overrides the default ladder for scoring harnesses
+
+Headers sent on every request:
+  Authorization: Bearer <key>
+  Content-Type: application/json
+  Accept: application/json
+  User-Agent: obsidia-router/track1-benchmark
+  (Cloudflare blocks Python-urllib default UA with 403/1010 — explicit UA required)
 """
 from __future__ import annotations
 
@@ -80,6 +87,8 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "obsidia-router/track1-benchmark",
         },
         method="POST",
     )
@@ -93,12 +102,20 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
             detail = exc.read().decode("utf-8", errors="replace")[:300]
         except Exception:
             pass
+        # Never log the Authorization header. Include endpoint + model for diagnosis.
+        endpoint = f"{base}/chat/completions"
+        hint = ""
+        if exc.code == 403:
+            hint = " (403: check User-Agent/headers or account permissions)"
+        elif exc.code == 404:
+            hint = " (404: model not available on this account)"
+        elif exc.code == 401:
+            hint = " (401: invalid or missing FIREWORKS_API_KEY)"
         return {
             "dry_run": False,
-            "error": f"HTTP {exc.code}: {detail or exc.reason}",
+            "error": f"HTTP {exc.code}{hint} model={model} endpoint={endpoint}: {detail or exc.reason}",
             "model": model,
-            "text": f"[error] Fireworks call failed (HTTP {exc.code}). "
-                    "Check FIREWORKS_API_KEY and model availability.",
+            "text": f"[error] Fireworks call failed (HTTP {exc.code}{hint}).",
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,
