@@ -58,6 +58,11 @@ from benchmarks.track1_remote_answer_contract import (  # noqa: E402
 )
 from benchmarks.footprint import collect_footprint, collect_parametric_efficiency  # noqa: E402
 from benchmarks.metrics_coverage import build_metrics_coverage  # noqa: E402
+from benchmarks.imported_proof_metrics import (  # noqa: E402
+    build_imported_proof_metrics,
+    load_proof_metrics,
+    resolve_proof_metrics_path,
+)
 
 OBSIDIA_VERDICT = {
     "hold_commands_only": "HOLD / commands-only (0 tokens)",
@@ -634,6 +639,47 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         "_runtime_stack_size_mb is the repo disk footprint, not process RSS. "
         "Process RSS is only measurable on Linux/macOS via stdlib resource module._",
         "",
+    ]
+
+    # Proof benchmark metrics section
+    _pm = report.get("imported_proof_metrics", {})
+    if _pm.get("enabled"):
+        _top = _pm.get("top_proof_metrics", {})
+        _input_file = _pm.get("input_file") or "unknown"
+        _nm = "not_measured"
+        lines += [
+            "## Proof benchmark metrics — imported, not Track 1 scored",
+            "",
+            "| Metric | Value | Source |",
+            "|---|---:|---|",
+            f"| Proof status | {_top.get('proof_status_global', _nm)} | RUN_METRICS_LAST.json |",
+            f"| Proof run duration | {_top.get('proof_run_duration_total_s', _nm)} s | imported |",
+            f"| Lean build | {_top.get('lean_build_status', _nm)} | imported |",
+            f"| TLC X108 states generated | {_top.get('tlc_x108_states_generated', _nm)} | imported |",
+            f"| TLC X108 distinct states | {_top.get('tlc_x108_distinct_states', _nm)} | imported |",
+            f"| Decision scenarios checked | {_top.get('verify_decision_scenarios_checked', _nm)} | imported |",
+            f"| Sigma tests | {_top.get('sigma_tests', _nm)} | imported |",
+            f"| GPS cases | {_top.get('gps_cases', _nm)} | imported |",
+            f"| GPS gate distribution | {_top.get('gps_gate_distribution', _nm)} | imported |",
+            f"| GPS mismatch gap | {_top.get('gps_mean_mismatch_gap', _nm)} | imported |",
+            f"| Anchor schema tests | {_top.get('anchor_schema_tests', _nm)} | imported |",
+            "",
+            "These proof metrics are imported read-only from the X108 proof benchmark. "
+            "They are not used for Track 1 scoring and do not affect routing.",
+            f"",
+            f"_Source file: `{_input_file}`_",
+            "",
+        ]
+    else:
+        lines += [
+            "## Proof benchmark metrics — imported, not Track 1 scored",
+            "",
+            "Proof metrics file not provided. "
+            "Use `--proof-metrics-file PATH` or `OBSIDIA_PROOF_METRICS_FILE`.",
+            "",
+        ]
+
+    lines += [
         "## Reading",
         "",
         "The token savings are a consequence, not the mechanism. The mechanism is",
@@ -1072,6 +1118,9 @@ def main() -> int:
     if "--out-dir" in sys.argv:
         out_dir_arg = sys.argv[sys.argv.index("--out-dir") + 1]
     no_receipts = "--no-receipts" in sys.argv
+    proof_metrics_file: str | None = None
+    if "--proof-metrics-file" in sys.argv:
+        proof_metrics_file = sys.argv[sys.argv.index("--proof-metrics-file") + 1]
     tasks_path = Path(tasks_file) if tasks_file else ROOT / "benchmarks" / "tasks.json"
     if tasks_file and not tasks_path.exists():
         print(f"ERROR: --tasks-file not found: {tasks_path}", file=sys.stderr)
@@ -1327,6 +1376,13 @@ def main() -> int:
         track1_rows=_track1_rows if track1_official else None,
         total_runtime_s=_total_runtime_s,
     )
+
+    # Proof metrics import — read-only, never affects routing or Track1 scoring
+    _proof_path = resolve_proof_metrics_path(proof_metrics_file)
+    _proof_raw = load_proof_metrics(_proof_path)
+    _proof_bloc = build_imported_proof_metrics(_proof_raw)
+    _proof_bloc["input_file"] = _proof_path
+    report["imported_proof_metrics"] = _proof_bloc
 
     out_dir = Path(out_dir_arg) if out_dir_arg else ROOT / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
