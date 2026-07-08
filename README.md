@@ -31,6 +31,12 @@ A good answer is not always a long answer. It can be: *I don't know*, *X is
 missing*, *action not authorized*, *clarification required*, *HOLD*,
 *commands-only*. Zero tokens spent, frame respected.
 
+## Parametric efficiency
+
+Track 1 measures token efficiency. Obsidia also reports parametric efficiency: how much task competence can be produced before carrying or calling a large learned model.
+
+This public Track 1 cut embeds 0 GB of learned model weights. Brody is stubbed, memory is minimal, and Fireworks is used only when the deterministic structure cannot close the task locally.
+
 ## Quick start
 
 Stdlib-only Python 3.12 — nothing to install.

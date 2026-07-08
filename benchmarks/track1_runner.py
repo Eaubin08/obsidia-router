@@ -24,6 +24,8 @@ import sys
 import time
 from pathlib import Path
 
+from benchmarks.track1_response_profile import build_response_profile_telemetry
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -124,7 +126,7 @@ def build_results(track1_rows: list[dict]) -> dict:
             "route": row["actual_route"],
             "level": row.get("level", 0),
             "tokens_used": tokens,
-            "fireworks_model": row.get("model"),
+            "fireworks_model": row.get("actual_model_used") or row.get("model"),
             "latency_ms": row.get("routing_latency_ms", 0.0),
             "route_correct": row.get("route_correct", False),
         })
@@ -147,7 +149,21 @@ def build_receipts(track1_rows: list[dict], extra: dict | None = None) -> dict:
     """Construit les receipts_internal.json (gouvernance complète, non soumis au harness)."""
     tasks_out = []
     for row in track1_rows:
-        tasks_out.append({
+        # Build Brody-like response profile telemetry from observed answer.
+        # bounded_remote_call=True only when route==fireworks AND a profile was
+        # applied before the call — distinguishing it from remote_call_avoided tasks.
+        answer_text = track1_answer(row)
+        expected_profile = row.get("expected_response_profile") or "SHORT"
+        is_bounded_remote = (
+            row["actual_route"] == "fireworks"
+            and row.get("expected_response_profile") is not None
+        )
+        profile_telemetry = build_response_profile_telemetry(
+            expected_profile, answer_text, bounded_remote_call=is_bounded_remote
+        )
+
+        contract = row.get("remote_answer_contract")
+        receipt_row: dict = {
             "id": row["id"],
             "request": row["request"],
             "expected_route": row.get("expected_route"),
@@ -163,7 +179,18 @@ def build_receipts(track1_rows: list[dict], extra: dict | None = None) -> dict:
             "fireworks_tokens": row.get("fireworks_tokens", 0),
             "remote_call_avoided": row.get("remote_call_avoided", True),
             "routing_latency_ms": row.get("routing_latency_ms", 0.0),
-        })
+            "actual_model_used": row.get("actual_model_used") or row.get("model"),
+            # Remote answer contract labels (fireworks rows only)
+            "contract_kind": contract["answer_kind"] if contract else None,
+            "selected_model": contract["model_preference"] if contract else None,
+            "model_matrix_calibrated": contract["model_matrix_calibrated"] if contract else False,
+            "calibration_source": contract["calibration_source"] if contract else None,
+            "budget_headroom_policy": contract["budget_headroom_policy"] if contract else None,
+            **profile_telemetry,
+        }
+        if contract:
+            receipt_row["remote_answer_contract"] = contract
+        tasks_out.append(receipt_row)
 
     total = len(track1_rows)
     correct = sum(1 for r in track1_rows if r.get("route_correct", False))

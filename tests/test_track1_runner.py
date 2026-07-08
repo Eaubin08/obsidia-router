@@ -29,6 +29,7 @@ def _row(
     memory_entry: str | None = None,
     model: str | None = None,
     topic_name: str = "GENERAL",
+    expected_response_profile: str | None = None,
 ) -> dict:
     return {
         "id": f"task_{route}",
@@ -49,6 +50,7 @@ def _row(
         "output": output,
         "memory_entry": memory_entry,
         "topic_name": topic_name,
+        "expected_response_profile": expected_response_profile,
     }
 
 
@@ -334,3 +336,160 @@ def test_write_track1_summary_returned():
         assert "route_accuracy" in result
         assert "tokens_used_total" in result
         assert "remote_calls" in result
+
+
+# ── receipts — champs response profile telemetry ──────────────────────────────
+
+def test_receipts_tasks_have_profile_telemetry_fields():
+    """Chaque task dans receipts doit avoir les champs de profil Brody-like + A3 labels."""
+    rows = [
+        _row("fireworks", tokens=42, output="A concise answer.",
+             model="accounts/fireworks/models/gpt-oss-120b",
+             expected_response_profile="SHORT"),
+    ]
+    receipts = build_receipts(rows)
+    task = receipts["tasks"][0]
+    required_profile_fields = {
+        "expected_response_profile",
+        "observed_response_size",
+        "observed_answer_words",
+        "density",
+        "projection_cost",
+        "compact_policy_source",
+        "brody_policy_imported",
+        # A3 audit labels
+        "bounded_remote_call",
+        "response_budget_profile",
+        "response_budget_source",
+        "response_budget_applied_before_generation",
+    }
+    assert required_profile_fields <= set(task.keys()), (
+        f"Champs manquants dans receipt task: {required_profile_fields - set(task.keys())}"
+    )
+
+
+def test_receipts_brody_not_imported_flag():
+    """brody_policy_imported doit être False (pas d'import privé)."""
+    rows = [_row("fireworks", output="short answer", expected_response_profile="MEDIUM")]
+    receipts = build_receipts(rows)
+    assert receipts["tasks"][0]["brody_policy_imported"] is False
+
+
+def test_receipts_compact_policy_source():
+    rows = [_row("no_model_needed", intent="status", expected_response_profile="SHORT")]
+    receipts = build_receipts(rows)
+    assert receipts["tasks"][0]["compact_policy_source"] == "brody_like_track1_local"
+
+
+def test_receipts_expected_profile_preserved():
+    rows = [_row("fireworks", output="def foo(): pass", expected_response_profile="CODE")]
+    receipts = build_receipts(rows)
+    assert receipts["tasks"][0]["expected_response_profile"] == "CODE"
+
+
+def test_results_json_has_no_profile_telemetry_fields():
+    """results.json public ne doit PAS contenir les champs de telemetry profil."""
+    rows = [
+        _row("fireworks", tokens=42, output="answer",
+             model="accounts/fireworks/models/gpt-oss-120b",
+             expected_response_profile="SHORT"),
+    ]
+    results = build_results(rows)
+    results_str = json.dumps(results)
+    assert "compact_policy_source" not in results_str
+    assert "brody_policy_imported" not in results_str
+    assert "expected_response_profile" not in results_str
+    assert "observed_response_size" not in results_str
+    assert "projection_cost" not in results_str
+
+
+def test_write_track1_receipts_has_profile_fields():
+    """Vérifier que les champs profil sont bien dans receipts_internal.json sur disque."""
+    rows = [
+        _row("fireworks", tokens=42, output="fast answer",
+             model="accounts/fireworks/models/gpt-oss-120b",
+             expected_response_profile="SHORT"),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        result = write_track1(rows, Path(tmp))
+        receipts_data = json.loads(result["receipts_path"].read_text(encoding="utf-8"))
+        task = receipts_data["tasks"][0]
+        assert "expected_response_profile" in task
+        assert "observed_answer_words" in task
+        assert task["brody_policy_imported"] is False
+        # A3 labels must be present on disk
+        assert "bounded_remote_call" in task
+        assert "response_budget_profile" in task
+        assert "response_budget_source" in task
+        assert "response_budget_applied_before_generation" in task
+
+
+# ── A3 labels — distinction bounded vs avoided ────────────────────────────────
+
+def test_receipts_fireworks_with_profile_is_bounded_remote():
+    """Tâche fireworks avec expected_response_profile → bounded_remote_call=True."""
+    rows = [
+        _row("fireworks", tokens=42, output="answer",
+             model="accounts/fireworks/models/gpt-oss-120b",
+             expected_response_profile="SHORT"),
+    ]
+    receipts = build_receipts(rows)
+    task = receipts["tasks"][0]
+    assert task["bounded_remote_call"] is True
+    assert task["response_budget_applied_before_generation"] is True
+
+
+def test_receipts_non_fireworks_is_not_bounded_remote():
+    """Tâche non-fireworks → bounded_remote_call=False (call avoided, not bounded)."""
+    rows = [
+        _row("no_model_needed", intent="status"),
+        _row("hold_commands_only", gate_matched="push", gate="HOLD"),
+        _row("memory_hit", memory_entry="Project state: OK"),
+    ]
+    receipts = build_receipts(rows)
+    for task in receipts["tasks"]:
+        assert task["bounded_remote_call"] is False, (
+            f"Task {task['id']} route={task['actual_route']} "
+            f"should not be bounded_remote_call"
+        )
+        assert task["response_budget_applied_before_generation"] is False
+
+
+def test_receipts_fireworks_without_profile_is_not_bounded():
+    """Tâche fireworks SANS expected_response_profile → bounded=False (pas de budget appliqué)."""
+    rows = [
+        _row("fireworks", tokens=10, output="answer",
+             model="accounts/fireworks/models/gpt-oss-120b",
+             expected_response_profile=None),
+    ]
+    receipts = build_receipts(rows)
+    task = receipts["tasks"][0]
+    assert task["bounded_remote_call"] is False
+
+
+def test_receipts_brody_is_not_bounded_remote():
+    """Tâche brody → bounded_remote_call=False (local organ, pas d'appel Fireworks)."""
+    rows = [_row("brody", output="Brody advisory answer")]
+    receipts = build_receipts(rows)
+    assert receipts["tasks"][0]["bounded_remote_call"] is False
+
+
+def test_results_json_no_a3_labels_leak():
+    """Les 4 champs A3 ne doivent PAS apparaître dans results.json public."""
+    rows = [
+        _row("fireworks", tokens=42, output="answer",
+             model="accounts/fireworks/models/gpt-oss-120b",
+             expected_response_profile="SHORT"),
+    ]
+    results = build_results(rows)
+    results_str = json.dumps(results)
+    a3_fields = [
+        "bounded_remote_call",
+        "response_budget_profile",
+        "response_budget_source",
+        "response_budget_applied_before_generation",
+    ]
+    for field in a3_fields:
+        assert field not in results_str, (
+            f"A3 field {field!r} leaked into public results.json"
+        )

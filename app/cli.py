@@ -30,14 +30,40 @@ def load_memory_index() -> dict:
 
 
 def run_one(raw: str, metrics: MetricsCollector, memory_index: dict,
-            ladder: list[str] | None = None) -> dict:
+            ladder: list[str] | None = None,
+            track1_profile: dict | None = None) -> dict:
+    """Route one request through the Obsidia pre-inference pipeline.
+
+    track1_profile, when provided, overrides the default Fireworks call with
+    a Brody-like budget: {"max_tokens": int, "system": str, "profile": str}.
+    Only active in --track1-official mode; transparent to V3B and demo modes.
+    """
     decision = decide(raw, memory_index=memory_index,
                       model_ladder=ladder or fireworks.allowed_models())
     result = None
     output_text = None
 
     if decision["route"] == "fireworks":
-        result = fireworks.chat(decision["model"], raw)
+        if track1_profile:
+            _calibrated_default = "accounts/fireworks/models/gpt-oss-120b"
+            _contract_model = track1_profile.get("model")
+            _allowed = fireworks.allowed_models()
+            if _contract_model and (
+                (_allowed and _contract_model in _allowed)
+                or (not _allowed and _contract_model == _calibrated_default)
+            ):
+                _fw_model = _contract_model
+            else:
+                _fw_model = decision["model"]
+            decision["actual_model_used"] = _fw_model
+            result = fireworks.chat(
+                _fw_model, raw,
+                max_tokens=track1_profile["max_tokens"],
+                system=track1_profile["system"],
+            )
+        else:
+            decision["actual_model_used"] = decision["model"]
+            result = fireworks.chat(decision["model"], raw)
         output_text = result["text"]
     elif decision["route"] == "brody":
         output_text = brody_stub.answer(decision["ir"], decision["topic"])["text"]
