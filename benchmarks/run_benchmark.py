@@ -45,6 +45,8 @@ from benchmarks.value_inputs import cognitive_value_inputs  # noqa: E402
 from benchmarks.path_quality import quality_axes  # noqa: E402
 from benchmarks.random_dynamic import generate_random_batches  # noqa: E402
 from benchmarks.random_compare import flatten_cases, is_governed_random_case, raw_answer_text, raw_case_verdict  # noqa: E402
+from benchmarks.stack_families import NO_REMOTE_ROUTES, STACK_V3B_FAMILIES, V3B_FAMILY_NAMES  # noqa: E402
+from app.adapters.brody_autostart import ensure_brody_live  # noqa: E402
 
 OBSIDIA_VERDICT = {
     "hold_commands_only": "HOLD / commands-only (0 tokens)",
@@ -411,6 +413,109 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
             f"| {r['id']} | {r['intent_type']} | {r['target_layer']} | "
             f"{r['action_type']} | {r['risk_level']} | {r['gate']} | {r['level']} | "
             f"{route_cell} | {r['fireworks_tokens']} | {r['routing_latency_s']}s |")
+    ba = report.get("brody_autostart")
+    if ba:
+        status_desc = {
+            "not_configured": "BRODY_ENDPOINT non défini — mode stub",
+            "live": "Endpoint déjà actif avant démarrage",
+            "missing": "Endpoint inactif, auto-start non demandé",
+            "start_command_missing": "Auto-start demandé mais BRODY_START_COMMAND absent",
+            "started_live": "Stack démarrée et endpoint actif",
+            "start_failed": "Stack démarrée mais endpoint reste inactif après timeout",
+        }.get(ba["status"], ba["status"])
+        lines += [
+            "",
+            "## Brody autostart",
+            "",
+            f"| Champ | Valeur |",
+            "|---|---|",
+            f"| status | **{ba['status']}** — {status_desc} |",
+            f"| endpoint | `{ba['endpoint']}` |",
+            f"| health_url | `{ba['health_url']}` |",
+            f"| live_before | {ba['live_before']} |",
+            f"| live_after | {ba['live_after']} |",
+            f"| attempted (Popen appelé) | {ba['attempted']} |",
+            f"| started (process lancé) | {ba['started']} |",
+            f"| start_command_present | {ba['start_command_present']} |",
+        ]
+        if ba["error"]:
+            lines.append(f"| error | `{ba['error'][:200]}` |")
+        lines += [
+            "",
+            "_BRODY_START_COMMAND lu depuis l'environnement uniquement. "
+            "Aucun chemin privé codé en dur. Stub toujours actif si endpoint absent._",
+            "",
+        ]
+
+    sv3b = report.get("stack_v3b")
+    if sv3b:
+        pf = sv3b["per_family"]
+        lines += [
+            "",
+            "## V3B STACK BENCHMARK — governed-layer routing",
+            "",
+            "> Seven families, each targeting a distinct Obsidia routing layer.",
+            "> Zero remote tokens. All invariants immutable.",
+            "",
+            f"- Route accuracy: **{sv3b['route_accuracy']:.0%}** "
+            f"({sv3b['route_match']}/{sv3b['total_cases']})",
+            f"- Remote tokens: **{sv3b['remote_tokens']}** (expected: 0)",
+            f"- Brody status: **{sv3b['brody_status']}**",
+            f"- real_action=false, memory_write=false, kernel_mutation=false, "
+            f"decision_authority={sv3b['decision_authority']}",
+            "",
+            "| Family | Route match | Expected route | Bridge type |",
+            "|---|---:|---|---|",
+        ]
+        expected_routes = {
+            "fastpath_structured": "no_model_needed",
+            "brody_readonly": "brody",
+            "obsidure_proposal": "obsidure_route_only",
+            "lean_proof_query": "lean_route_only",
+            "domain_bank": "domain_bridge",
+            "domain_trading": "domain_bridge",
+            "domain_gps": "domain_bridge",
+        }
+        bridge_types = {
+            "fastpath_structured": "DIRECT_ROUTE",
+            "brody_readonly": "BRODY_READONLY",
+            "obsidure_proposal": "OBSIDURE_PROPOSAL_READONLY",
+            "lean_proof_query": "LEAN_PROOF_CHECK",
+            "domain_bank": "DOMAIN_BANK",
+            "domain_trading": "DOMAIN_TRADING",
+            "domain_gps": "DOMAIN_GPS",
+        }
+        for fam in ["fastpath_structured", "brody_readonly", "obsidure_proposal",
+                    "lean_proof_query", "domain_bank", "domain_trading", "domain_gps"]:
+            st = pf.get(fam, {"ok": 0, "cases": 0})
+            extra = f", mode={sv3b['brody_status']}" if fam == "brody_readonly" else ""
+            lines.append(
+                f"| {fam} | {st['ok']}/{st['cases']}{extra} | "
+                f"{expected_routes.get(fam, '?')} | {bridge_types.get(fam, '?')} |"
+            )
+        brody_m = sv3b.get("brody_metrics", {})
+        lines += [
+            "",
+            "### Brody details",
+            "",
+            f"- live calls: {brody_m.get('brody_live_calls', 0)}",
+            f"- stub fallbacks: {brody_m.get('brody_stub_fallbacks', 0)}",
+            f"- errors: {brody_m.get('brody_errors', 0)}",
+            f"- avg latency: {brody_m.get('brody_latency_ms_avg', 0)} ms",
+            "",
+            "### V3B receipts (first 15 rows)",
+            "",
+            "| input_id | family | actual_route | route_match | tokens | revendicable |",
+            "|---|---|---|---|---:|---|",
+        ]
+        for row in sv3b["rows"][:15]:
+            lines.append(
+                f"| {row['input_id']} | {row['family']} | {row['actual_route']} | "
+                f"{'✅' if row['route_match'] else '❌'} | {row['remote_tokens']} | "
+                f"{'yes' if row['revendicable'] else 'no'} |"
+            )
+        lines += ["", "KX108_ONLY | emits_act=false | real_action=false", ""]
+
     lines += [
         "",
         "## Reading",
@@ -583,6 +688,116 @@ def run_random_dynamic_batches(
 
 
 
+def run_stack_v3b_phase(
+    require_brody_live: bool = False,
+) -> dict:
+    """V3B stack benchmark — 7 governed-layer families, zero remote tokens.
+
+    Routes each fixture through the deterministic pipeline and checks that
+    the selected route matches the expected governed layer.  No Fireworks call
+    is ever made; families that need remote inference are a test failure.
+    """
+    from app.adapters.brody_readonly import answer as brody_answer
+    from app.adapters.brody_readonly import get_metrics as brody_metrics
+    from app.adapters.brody_readonly import reset_metrics as brody_reset
+    from app.router.decision import decide
+
+    brody_reset()
+
+    rows: list[dict] = []
+    per_family: dict[str, dict] = {n: {"cases": 0, "ok": 0} for n in V3B_FAMILY_NAMES}
+    total_remote_tokens = 0
+    t0 = time.perf_counter()
+
+    for case in STACK_V3B_FAMILIES:
+        ct0 = time.perf_counter()
+        decision = decide(case["request"])
+        routing_ms = round((time.perf_counter() - ct0) * 1000, 3)
+
+        actual_route = decision["route"]
+        route_match = actual_route == case["expected_route"]
+
+        remote_tokens = 0
+        if actual_route == "fireworks":
+            remote_tokens = estimate_tokens(case["request"])
+            total_remote_tokens += remote_tokens
+
+        brody_mode = None
+        if case["family"] == "brody_readonly":
+            ir = decision["ir"]
+            topic = decision["topic"]
+            brody_result = brody_answer(ir, topic)
+            brody_mode = brody_result.get("brody_mode", "stub")
+
+        revendicable = route_match and actual_route in NO_REMOTE_ROUTES and remote_tokens == 0
+        revendicable_reason = case["revendicable_reason"] if revendicable else "ROUTE_MISMATCH_OR_TOKEN_LEAK"
+
+        fam = per_family[case["family"]]
+        fam["cases"] += 1
+        fam["ok"] += int(route_match)
+
+        row: dict = {
+            "family": case["family"],
+            "input_id": case["input_id"],
+            "request": case["request"],
+            "expected_route": case["expected_route"],
+            "actual_route": actual_route,
+            "route_match": route_match,
+            "expected_layer": case["expected_layer"],
+            "actual_level": decision["level"],
+            "bridge_type": case["bridge_type"],
+            "model_call_required": case["model_call_required"],
+            "model_call_avoided": actual_route in NO_REMOTE_ROUTES,
+            "remote_tokens": remote_tokens,
+            "emits_act": False,
+            "real_action": False,
+            "memory_write": False,
+            "kernel_mutation": False,
+            "decision_authority": "KX108_ONLY",
+            "revendicable": revendicable,
+            "revendicable_reason": revendicable_reason,
+            "routing_ms": routing_ms,
+        }
+        if brody_mode is not None:
+            row["brody_mode"] = brody_mode
+        rows.append(row)
+
+    elapsed = time.perf_counter() - t0
+    total = len(rows)
+    ok = sum(1 for r in rows if r["route_match"])
+    bm = brody_metrics()
+
+    brody_ok = per_family["brody_readonly"]["ok"]
+    brody_cases = per_family["brody_readonly"]["cases"]
+    brody_live = bm["brody_live_calls"] > 0
+
+    brody_status = "live" if brody_live else "stub"
+    if bm["brody_errors"] > 0 and not brody_live:
+        brody_status = "fallback"
+
+    if require_brody_live and not brody_live:
+        brody_status = "REQUIRED_BUT_MISSING"
+
+    return {
+        "seed": 808,
+        "total_cases": total,
+        "route_match": ok,
+        "route_accuracy": round(ok / total, 4) if total else 0.0,
+        "remote_tokens": total_remote_tokens,
+        "real_action": False,
+        "memory_write": False,
+        "kernel_mutation": False,
+        "decision_authority": "KX108_ONLY",
+        "brody_status": brody_status,
+        "brody_metrics": bm,
+        "per_family": per_family,
+        "rows": rows,
+        "avg_routing_ms": round(elapsed / total * 1000, 3) if total else 0.0,
+        "require_brody_live": require_brody_live,
+        "brody_live_ok": not (require_brody_live and not brody_live),
+    }
+
+
 def run_random_comparative_phase(
     compare_cases: int,
     num_batches: int,
@@ -708,6 +923,12 @@ def run_random_comparative_phase(
 
 def main() -> int:
     live_baseline = "--live-baseline" in sys.argv
+    run_stack_v3b = "--stack-v3b" in sys.argv
+    require_brody_live = "--require-brody-live" in sys.argv
+    auto_start_brody = "--auto-start-brody" in sys.argv
+    stack_seed = 808
+    if "--stack-seed" in sys.argv:
+        stack_seed = int(sys.argv[sys.argv.index("--stack-seed") + 1])
     n_dynamic = 30
     if "--dynamic" in sys.argv:
         n_dynamic = int(sys.argv[sys.argv.index("--dynamic") + 1])
@@ -887,6 +1108,17 @@ def main() -> int:
         "random_comparative": random_comparative,
         "tasks": rows,
     }
+    stack_v3b_result = None
+    brody_autostart_result = None
+    if run_stack_v3b:
+        brody_autostart_result = ensure_brody_live(
+            auto_start=auto_start_brody,
+            require_live=require_brody_live,
+        )
+        report["brody_autostart"] = brody_autostart_result
+        stack_v3b_result = run_stack_v3b_phase(require_brody_live=require_brody_live)
+        report["stack_v3b"] = stack_v3b_result
+
     report["quality_axes"] = quality_axes(report)
     report["cognitive_value_inputs"] = cognitive_value_inputs(report)
     out_dir = ROOT / "results"
@@ -1011,6 +1243,40 @@ def main() -> int:
     print(f"  latency              : local decision {avg_routing_ms} ms avg | "
           f"fireworks call {avg_fw_latency} s avg")
 
+    if brody_autostart_result:
+        ba = brody_autostart_result
+        print()
+        print("BRODY AUTOSTART")
+        print(f"  status              : {ba['status']}")
+        print(f"  endpoint            : {ba['endpoint']}")
+        print(f"  health_url          : {ba['health_url']}")
+        print(f"  live_before         : {ba['live_before']}")
+        print(f"  live_after          : {ba['live_after']}")
+        print(f"  attempted           : {ba['attempted']}")
+        print(f"  started             : {ba['started']}")
+        print(f"  start_command_present: {ba['start_command_present']}")
+        if ba["error"]:
+            print(f"  error               : {ba['error']}")
+
+    if stack_v3b_result:
+        sv = stack_v3b_result
+        pf = sv["per_family"]
+        print()
+        print("V3B STACK BENCHMARK")
+        for fam in ["fastpath_structured", "brody_readonly", "obsidure_proposal",
+                    "lean_proof_query", "domain_bank", "domain_trading", "domain_gps"]:
+            st = pf.get(fam, {"ok": 0, "cases": 0})
+            extra = ""
+            if fam == "brody_readonly":
+                extra = f", mode={sv['brody_status']}"
+            print(f"  {fam:<26} {st['ok']}/{st['cases']} route_match{extra}")
+        acc = sv["route_accuracy"]
+        print(f"  stack route accuracy      : {acc:.0%} ({sv['route_match']}/{sv['total_cases']})")
+        print(f"  remote tokens             : {sv['remote_tokens']}")
+        print(f"  real_action=false, memory_write=false, kernel_mutation=false, KX108_ONLY")
+        if require_brody_live and not sv["brody_live_ok"]:
+            print("  WARNING: --require-brody-live set but Brody endpoint not live")
+
     print()
     print(f"route accuracy        : {report['route_accuracy']:.0%} ({correct}/{len(tasks)})")
     print(f"remote calls: baseline {baseline_calls} -> obsidia {summary['fireworks_needed']}")
@@ -1044,6 +1310,9 @@ def main() -> int:
         print("fireworks             : dry-run (no FIREWORKS_API_KEY)")
     print(f"report -> {out}")
     print(f"report -> {report_md}")
+    if require_brody_live and stack_v3b_result and not stack_v3b_result["brody_live_ok"]:
+        print("EXIT 1: --require-brody-live set but Brody endpoint unreachable")
+        return 1
     return 0 if correct == len(tasks) else 1
 
 

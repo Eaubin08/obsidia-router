@@ -57,6 +57,18 @@ def decide(raw: str, memory_index: dict | None = None,
         "reason": None,
     }
 
+    # --- Stack-layer pre-routing (before CLARIFY) ----------------------------
+    # Governed surfaces have deterministic routes and must never hit CLARIFY.
+    # DENY/HOLD are still respected first (below).
+    if ir["target_layer"] == "obsidure" and gate["verdict"] not in ("DENY", "HOLD"):
+        decision.update(level=1, route="obsidure_route_only",
+                        reason="obsidure layer: proposal-only routing, non-sovereign")
+        return decision
+    if ir["target_layer"] == "domain" and gate["verdict"] not in ("DENY", "HOLD"):
+        decision.update(level=1, route="domain_bridge",
+                        reason="domain layer: governed domain signal (bank/trading/gps)")
+        return decision
+
     # --- Level 0: the frame decides, no token spent -------------------------
     if gate["verdict"] == "DENY":
         decision.update(route="denied", reason=gate["reason"])
@@ -94,6 +106,20 @@ def decide(raw: str, memory_index: dict | None = None,
                             reason=f"canonical topic {topic['topic']} covered by corpus")
             decision["memory_entry"] = entry
             return decision
+
+    # --- Stack-layer routing (V3B) — governed surfaces, no remote tokens -----
+    if ir["target_layer"] == "obsidure":
+        decision.update(level=1, route="obsidure_route_only",
+                        reason="obsidure layer: proposal-only routing, non-sovereign, no remote inference")
+        return decision
+    if ir["target_layer"] == "proof":
+        decision.update(level=1, route="lean_route_only",
+                        reason="proof/lean layer: formal surface check, no remote inference")
+        return decision
+    if ir["target_layer"] == "domain":
+        decision.update(level=1, route="domain_bridge",
+                        reason="domain layer: governed domain decision (bank/trading/gps), no LLM")
+        return decision
 
     # --- Level 1: local proprietary organ -------------------------------------
     if ir["intent_type"] == "question" and not ir["needs"]["remote_model"]:

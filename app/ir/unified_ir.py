@@ -60,6 +60,10 @@ _ACTION_WORDS = {
 }
 
 _LAYER_KEYWORDS: tuple[tuple[str, set[str]], ...] = (
+    # Obsidure is a proper noun — highest priority.
+    ("obsidure", {"obsidure"}),
+    # Domain keywords are highly specific; they must beat generic words like "route".
+    ("domain", {"bank", "trading", "virement", "bancaire", "gps", "altitude", "aviation"}),
     ("terminal", {"terminal", "langage", "uni", "ir", "router", "route"}),
     ("memory", {"memoire", "memory", "corpus", "souviens", "remember", "sait"}),
     ("brody", {"brody", "explique", "contexte", "reformule", "synthese"}),
