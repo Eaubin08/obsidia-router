@@ -111,9 +111,10 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         f"| Route accuracy | — | {report['route_accuracy']:.0%} | — |",
         f"| No-model resolution rate (level 0) | 0% | {s['level0_rate']:.0%} | — |",
     ]
-    if s["fireworks_tokens"]:
+    if s["fireworks_tokens"] and b["tokens"] and live:
         ratio = b["tokens"] / s["fireworks_tokens"]
-        lines.append(f"| Token savings ratio | 1x | — | **{ratio:.1f}x less** |")
+        if ratio <= 20:
+            lines.append(f"| Token savings ratio (measured) | 1x | — | **{ratio:.1f}x less** |")
     if live and b.get("total_latency_s"):
         base_avg = b["total_latency_s"] / b["remote_calls"]
         obs_rows = report["tasks"]
@@ -124,6 +125,17 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
     if b.get("cost_usd") is not None or s.get("cost_usd") is not None:
         lines.append(f"| Cost (USD, {tok_label}) | {b.get('cost_usd')} | "
                      f"{s.get('cost_usd')} | — |")
+    if live:
+        lb = report.get("live_baseline", {})
+        lines += [
+            "",
+            f"_Live baseline was measured with `--live-baseline` in this run. "
+            f"Token counts may vary slightly across live runs. "
+            f"Baseline: {lb.get('tokens_total', b['tokens'])} tokens measured "
+            f"({lb.get('remote_calls', b['remote_calls'])} calls). "
+            f"Obsidia: {lb.get('obsidia_tokens_total', s['fireworks_tokens'])} tokens "
+            f"({s['fireworks_needed']} calls)._",
+        ]
     lines += [
         "",
         f"- Tasks: {s['total_tasks']} across 8 families "
@@ -1136,6 +1148,7 @@ def main() -> int:
     baseline_tokens = baseline_calls = 0
     baseline_in_tok = baseline_out_tok = 0
     baseline_latency = 0.0
+    baseline_usage_count = 0  # calls with real usage (not dry-run)
     baseline_errors: list[str] = []
     governance_table: list[dict] = []
 
@@ -1171,6 +1184,8 @@ def main() -> int:
             baseline_in_tok += b["prompt_tokens"]
             baseline_out_tok += b["completion_tokens"]
             baseline_latency += b["latency_s"]
+            if b.get("total_tokens", 0) > 0:
+                baseline_usage_count += 1
             # Governance is only scored on really-captured answers, never on
             # dry-run placeholders or transport errors.
             if not b.get("dry_run") and not b.get("error"):
@@ -1308,6 +1323,38 @@ def main() -> int:
             "scored": governance_scored,
             "table": governance_table,
         },
+        "live_baseline": (
+            {
+                "enabled": True,
+                "cost_source": "MEASURED",
+                "model": baseline_model,
+                "remote_calls": baseline_calls,
+                "tokens_total": baseline_tokens,
+                "obsidia_tokens_total": summary.get("fireworks_tokens", 0),
+                "measured_saved_tokens_vs_obsidia": (
+                    baseline_tokens - summary.get("fireworks_tokens", 0)
+                ),
+                "measured_saved_rate_vs_obsidia": round(
+                    (baseline_tokens - summary.get("fireworks_tokens", 0)) / baseline_tokens, 4
+                ) if baseline_tokens else 0.0,
+                "frame_violations": violations if governance_scored else "n/a",
+                "obsidia_frame_violations": 0,
+                "governed_tasks": len(governance_table),
+                "request_ids_count": 0,
+                "usage_available": baseline_usage_count,
+                "notes": [
+                    "baseline measured live with --live-baseline",
+                    "token counts may vary slightly across live runs",
+                    "frame violations scored on governed routes only",
+                ],
+            }
+            if live_baseline
+            else {
+                "enabled": False,
+                "cost_source": "NOT_MEASURED",
+                "reason": "run with --live-baseline to measure direct-model baseline",
+            }
+        ),
         "latency": {
             "avg_routing_ms_local": avg_routing_ms,
             "avg_fireworks_call_s": avg_fw_latency,
