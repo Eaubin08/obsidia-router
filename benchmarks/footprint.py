@@ -3,10 +3,15 @@
 Measures embedded infrastructure: model weights, memory, stack size.
 collect_parametric_efficiency() uses only the benchmark summary dict —
 it has NO influence on routing decisions. KX108_ONLY is unchanged.
+
+runtime_stack_size_mb is a DISK PROXY (repo size), not process RSS.
+process_rss_mb is measured on Linux/macOS via stdlib resource; on Windows
+without psutil it is not_measured. No psutil dependency is added.
 """
 from __future__ import annotations
 
 import os
+import platform
 from pathlib import Path
 
 _MODEL_EXTENSIONS: frozenset[str] = frozenset({
@@ -62,6 +67,26 @@ def detect_local_model_files(root: Path) -> list[str]:
     return sorted(found)
 
 
+def _get_process_rss_mb() -> tuple[float | None, str]:
+    """Return (rss_mb, status) using stdlib only. No psutil dependency.
+
+    Linux : resource.ru_maxrss is in KB.
+    macOS : resource.ru_maxrss is in bytes.
+    Windows: not measurable without psutil → not_measured.
+    """
+    system = platform.system()
+    try:
+        import resource  # Unix only
+        rss_raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if system == "Linux":
+            return round(rss_raw / 1024, 2), "measured"
+        if system == "Darwin":
+            return round(rss_raw / 1_048_576, 2), "measured"
+    except (ImportError, OSError):
+        pass
+    return None, "not_measured_no_psutil_or_platform_support"
+
+
 def collect_footprint(root: Path) -> dict:
     root = Path(root)
     local_models = detect_local_model_files(root)
@@ -71,10 +96,17 @@ def collect_footprint(root: Path) -> dict:
     brody_endpoint = os.environ.get("BRODY_ENDPOINT", "").strip()
     brody_live = bool(brody_endpoint)
 
+    rss_mb, rss_status = _get_process_rss_mb()
+
     return {
         "embedded_model_weight_gb":    0,
         "repo_size_mb":                r_size,
+        "repo_disk_size_mb":           r_size,
+        "runtime_disk_proxy_mb":       r_size,
         "runtime_stack_size_mb":       r_size,
+        "runtime_stack_size_note":     "disk proxy, not process RSS",
+        "process_rss_mb":              rss_mb if rss_mb is not None else "not_measured",
+        "process_rss_status":          rss_status,
         "memory_index_size_mb":        mem_size,
         "local_model_files_detected":  local_models,
         "persistent_memory_enabled":   False,

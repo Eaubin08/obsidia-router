@@ -24,6 +24,7 @@ FIREWORKS_OUTPUT_COST_PER_1M (USD) to convert measured tokens to dollars.
 """
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import sys
@@ -599,6 +600,39 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         "Token efficiency: fewer Fireworks tokens than the direct-model baseline.",
         "Parametric efficiency: 0 GB embedded learned model weights.",
         "Structural efficiency: answers closed by IR, gates, routes and deterministic passes before model inference.",
+    ]
+
+    # Weight and speed measurement notes
+    _fp = report.get("footprint", {})
+    _lat = report.get("latency", {})
+    _dyn = report.get("dynamic", {})
+    _sp = report.get("metrics_coverage", {}).get("speed", {})
+    _rss = _fp.get("process_rss_mb", "not_measured")
+    _rss_display = (f"{_rss} MB" if isinstance(_rss, (int, float)) else "not_measured")
+    lines += [
+        "",
+        "## Weight and speed — measurement notes",
+        "",
+        "| Metric | Value | Source | Status |",
+        "|---|---:|---|---|",
+        f"| Embedded model weights | 0 GB | local model file scan | measured |",
+        f"| Repo disk size | {_fp.get('repo_disk_size_mb', _fp.get('repo_size_mb', 0))} MB"
+        f" | filesystem scan | measured |",
+        f"| Runtime stack size | {_fp.get('runtime_disk_proxy_mb', _fp.get('repo_size_mb', 0))} MB"
+        f" | disk proxy | proxy, not RSS |",
+        f"| Process RSS | {_rss_display} | platform resource module | "
+        f"{_fp.get('process_rss_status', 'not_measured')} |",
+        f"| Local decision avg | {_lat.get('avg_routing_ms_local', _sp.get('avg_local_decision_ms', 0))} ms"
+        f" | non-Fireworks rows | measured |",
+        f"| Local p95 / p99 | {_sp.get('local_decision_p95_ms', '?')} /"
+        f" {_sp.get('local_decision_p99_ms', '?')} ms | non-Fireworks rows | measured |",
+        f"| Fireworks avg call | {_lat.get('avg_fireworks_call_s', _sp.get('avg_fireworks_call_s', 0))} s"
+        f" | Fireworks records | measured if live |",
+        f"| Dynamic decisions/sec | {_dyn.get('decisions_per_second', _sp.get('decisions_per_second', '?'))}"
+        f" | dynamic phase | measured |",
+        "",
+        "_runtime_stack_size_mb is the repo disk footprint, not process RSS. "
+        "Process RSS is only measurable on Linux/macOS via stdlib resource module._",
         "",
         "## Reading",
         "",
@@ -1296,6 +1330,17 @@ def main() -> int:
 
     out_dir = Path(out_dir_arg) if out_dir_arg else ROOT / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    _run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    report["run_id"] = _run_id
+    report["generated_from"] = {
+        "track1_official": track1_official,
+        "stack_v3b": run_stack_v3b,
+        "tasks_file": str(tasks_path),
+        "out_dir": str(out_dir),
+        "run_id": _run_id,
+    }
+
     out = out_dir / "benchmark_report.json"
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     report_md = write_report_md(report, out_dir)
@@ -1455,7 +1500,8 @@ def main() -> int:
         t1 = write_track1(
             _track1_rows,
             out_dir,
-            extra={"obsidia_summary": summary, "model_ladder": ladder},
+            extra={"obsidia_summary": summary, "model_ladder": ladder,
+                   "run_id": _run_id},
             no_receipts=no_receipts,
         )
         print()

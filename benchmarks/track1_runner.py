@@ -197,6 +197,7 @@ def build_receipts(track1_rows: list[dict], extra: dict | None = None) -> dict:
 
     receipt: dict = {
         "governance": _INTERNAL_GOVERNANCE,
+        "run_id": extra.get("run_id") if extra else None,
         "total_tasks": total,
         "route_accuracy": round(correct / total, 4) if total else 0.0,
         "remote_tokens": sum(r.get("fireworks_tokens", 0) for r in track1_rows),

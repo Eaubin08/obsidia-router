@@ -145,9 +145,22 @@ def _parametric_efficiency_full(report: dict) -> dict:
 
     docker_nm = _nm("docker image not built in this run", "docker inspect obsidia-router")
 
+    rss = fp.get("process_rss_mb", "not_measured")
+    rss_status = fp.get("process_rss_status", "not_measured_no_psutil_or_platform_support")
+    rss_val = rss if rss != "not_measured" else _nm(
+        "process RSS not available without psutil on this platform",
+        "psutil or Linux/macOS resource module",
+    )
+
     return {
         "embedded_model_weight_gb": 0,
+        "repo_disk_size_mb": fp.get("repo_disk_size_mb", fp.get("repo_size_mb", 0)),
         "repo_size_mb": fp.get("repo_size_mb", 0),
+        "runtime_disk_proxy_mb": fp.get("runtime_disk_proxy_mb", fp.get("repo_size_mb", 0)),
+        "runtime_stack_size_mb": fp.get("runtime_stack_size_mb", fp.get("repo_size_mb", 0)),
+        "runtime_stack_size_note": fp.get("runtime_stack_size_note", "disk proxy, not process RSS"),
+        "process_rss_mb": rss_val,
+        "process_rss_status": rss_status,
         "docker_compressed_size_mb": docker_nm,
         "docker_uncompressed_size_mb": docker_nm,
         "persistent_memory_size_mb": 0,
@@ -239,6 +252,17 @@ def _speed(report: dict, rows: list[dict], total_runtime_s: float | None) -> dic
         "dynamic_avg_decision_ms": dyn.get("avg_decision_ms"),
         "startup_time_s": _nm("startup time not isolated from benchmark run"),
         "total_runtime_s": total_runtime_s if total_runtime_s is not None else _nm("not measured"),
+        "sources": {
+            "avg_local_decision_ms": "rows_non_fireworks",
+            "local_decision_p95_ms": "rows_non_fireworks",
+            "local_decision_p99_ms": "rows_non_fireworks",
+            "avg_fireworks_call_s": "metrics_records_fireworks",
+            "remote_local_latency_ratio": "derived_avg_fw_s_div_avg_local_ms",
+            "decisions_per_second": "dynamic_phase",
+            "dynamic_avg_decision_ms": "dynamic_phase",
+            "total_runtime_s": "main_wallclock",
+            "startup_time_s": "not_measured",
+        },
     }
 
 
