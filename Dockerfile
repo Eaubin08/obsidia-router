@@ -7,8 +7,18 @@ COPY . .
 
 ENV PYTHONUNBUFFERED=1
 # Live Fireworks calls require FIREWORKS_API_KEY at run time:
-#   docker run -e FIREWORKS_API_KEY=... obsidia-router
+#   docker run -e FIREWORKS_API_KEY=... -v /host/input:/input -v /host/output:/output obsidia-router
 # Optional: FIREWORKS_BASE_URL, ALLOWED_MODELS (comma-separated, cheapest first)
-
-# Default: run the benchmark (works without credentials, dry-run mode)
-CMD ["python", "benchmarks/run_benchmark.py"]
+#
+# Official hackathon mode (default CMD):
+#   reads  /input/tasks.json
+#   writes /output/results.json   (public, harness-clean)
+#   skips  receipts_internal.json (governance audit — not submitted to harness)
+#
+# Local dev override:
+#   docker run obsidia-router python benchmarks/run_benchmark.py --stack-v3b
+CMD ["python", "benchmarks/run_benchmark.py", \
+     "--track1-official", \
+     "--tasks-file", "/input/tasks.json", \
+     "--out-dir", "/output", \
+     "--no-receipts"]

@@ -1034,7 +1034,15 @@ def main() -> int:
     n_random_compare = 0
     if "--random-compare" in sys.argv:
         n_random_compare = int(sys.argv[sys.argv.index("--random-compare") + 1])
-    tasks = json.loads((ROOT / "benchmarks" / "tasks.json").read_text(encoding="utf-8"))
+    out_dir_arg: str | None = None
+    if "--out-dir" in sys.argv:
+        out_dir_arg = sys.argv[sys.argv.index("--out-dir") + 1]
+    no_receipts = "--no-receipts" in sys.argv
+    tasks_path = Path(tasks_file) if tasks_file else ROOT / "benchmarks" / "tasks.json"
+    if tasks_file and not tasks_path.exists():
+        print(f"ERROR: --tasks-file not found: {tasks_path}", file=sys.stderr)
+        return 2
+    tasks = json.loads(tasks_path.read_text(encoding="utf-8"))
     memory_index = load_memory_index()
     metrics = MetricsCollector()
     ladder = fireworks.allowed_models() or DEFAULT_MODEL_LADDER
@@ -1286,8 +1294,8 @@ def main() -> int:
         total_runtime_s=_total_runtime_s,
     )
 
-    out_dir = ROOT / "results"
-    out_dir.mkdir(exist_ok=True)
+    out_dir = Path(out_dir_arg) if out_dir_arg else ROOT / "results"
+    out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "benchmark_report.json"
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     report_md = write_report_md(report, out_dir)
@@ -1448,6 +1456,7 @@ def main() -> int:
             _track1_rows,
             out_dir,
             extra={"obsidia_summary": summary, "model_ladder": ladder},
+            no_receipts=no_receipts,
         )
         print()
         print("TRACK1-COMPATIBLE LOCAL BENCHMARK OUTPUT")

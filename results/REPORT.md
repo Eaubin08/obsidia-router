@@ -8,16 +8,16 @@
 | Metric | Baseline (direct model) | Obsidia | Gain |
 |---|---:|---:|---:|
 | Remote calls | 18 | 3 | 83% avoided |
-| Remote tokens (estimated) | 5584 | 1740 | 69% saved |
+| Remote tokens (estimated) | 5584 | 2895 | 48% saved |
 | Frame violations (governed tasks) | n/a (needs --live-baseline) | 0/8 | governed |
 | Route accuracy | — | 100% | — |
 | No-model resolution rate (level 0) | 0% | 61% | — |
-| Token savings ratio | 1x | — | **3.2x less** |
+| Token savings ratio | 1x | — | **1.9x less** |
 
 - Tasks: 18 across 8 families (status, IR, world actions, destructive, ambiguous, memory, local organ, remote reasoning)
 - Distribution: 3 no-model, 4 HOLD, 2 denied, 2 clarify, 2 memory, 2 brody, 3 fireworks
 - Invariants: no_auto_act / no_auto_commit / no_auto_push respected on every task (asserted by dynamic bounded tests)
-- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 2.5104s
+- Avg routing latency: sub-millisecond deterministic pipeline; remote calls avg 0.9067s
 - Model ladder (cheapest sufficient): accounts/fireworks/models/gpt-oss-120b, accounts/fireworks/models/deepseek-v4-pro, accounts/fireworks/models/glm-5p2
 
 ### Top 5 efficiency metrics
@@ -26,9 +26,9 @@
 |---|---|---|
 | 1 | Embedded model weights | **0 GB** |
 | 2 | Zero-Fireworks rate | **83%** |
-| 3 | Fireworks tokens total | **1740** |
+| 3 | Fireworks tokens total | **2895** |
 | 4 | Route accuracy | **100%** |
-| 5 | Local decision avg / Decisions/sec | **0.227 ms** / ~**12219 decisions/s** |
+| 5 | Local decision avg / Decisions/sec | **0.12 ms** / ~**21943 decisions/s** |
 
 ## Comparison method — direct model vs Obsidia Router
 
@@ -38,7 +38,7 @@ It compares a direct-model baseline against a router that decides whether remote
 | Axis | Direct model baseline | Obsidia Router |
 |---|---:|---:|
 | Remote model calls | 18 | 3 |
-| Remote tokens | 5584 | 1740 |
+| Remote tokens | 5584 | 2895 |
 | Governed frame violations | n/a (needs --live-baseline) | 0/8 |
 | Route accuracy | — | 100% |
 
@@ -82,7 +82,7 @@ Seeded dirty generator (seed 208): **160 variations** covering typos, franglais,
 | dirty_remote_reasoning | 20/20 | fireworks=20 |
 | dirty_remote_code | 20/20 | fireworks=20 |
 
-**Dirty invariants held: 160/160 (100%)** — 0.093 ms per decision, ~10787 decisions/second.
+**Dirty invariants held: 160/160 (100%)** — 0.056 ms per decision, ~17908 decisions/second.
 
 - Dirty V2 is separate from Dynamic V1; V1 remains the stable frame test.
 - Brody identity edge allows CLARIFY or Brody in the public stub cut, but never remote escalation.
@@ -114,28 +114,28 @@ No global quality score is introduced. These axes expose existing benchmark fact
 
 | Level | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
 |---:|---:|---:|---:|---:|---:|---:|
-| 0 | 11 | 0.273 | 0.1 | 1.4 | 1.4 | 1.4 |
+| 0 | 11 | 0.136 | 0.1 | 1.0 | 1.0 | 1.0 |
 | 1 | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
-| 2 | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
-| 3 | 3 | 15062.867 | 15136.2 | 17076.3 | 17076.3 | 17076.3 |
+| 2 | 2 | 0.05 | 0.05 | 0.1 | 0.1 | 0.1 |
+| 3 | 3 | 5440.033 | 5898.0 | 6372.0 | 6372.0 | 6372.0 |
 
 ### Speed profile by route
 
 | Route | n | avg ms | p50 ms | p95 ms | p99 ms | max ms |
 |---|---:|---:|---:|---:|---:|---:|
 | brody | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
-| clarification_needed | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
-| denied | 2 | 0.25 | 0.25 | 0.4 | 0.4 | 0.4 |
-| fireworks | 3 | 15062.867 | 15136.2 | 17076.3 | 17076.3 | 17076.3 |
-| hold_commands_only | 4 | 0.125 | 0.1 | 0.2 | 0.2 | 0.2 |
-| memory_hit | 2 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 |
-| no_model_needed | 3 | 0.6 | 0.2 | 1.4 | 1.4 | 1.4 |
+| clarification_needed | 2 | 0.05 | 0.05 | 0.1 | 0.1 | 0.1 |
+| denied | 2 | 0.05 | 0.05 | 0.1 | 0.1 | 0.1 |
+| fireworks | 3 | 5440.033 | 5898.0 | 6372.0 | 6372.0 | 6372.0 |
+| hold_commands_only | 4 | 0.025 | 0.0 | 0.1 | 0.1 | 0.1 |
+| memory_hit | 2 | 0.05 | 0.05 | 0.1 | 0.1 | 0.1 |
+| no_model_needed | 3 | 0.4 | 0.1 | 1.0 | 1.0 | 1.0 |
 
-- Dynamic throughput: **0.082 ms/decision**, ~**12219 decisions/s**
-- Remote/local latency ratio: **66356.8x** when both live remote latency and local latency are available
+- Dynamic throughput: **0.046 ms/decision**, ~**21943 decisions/s**
+- Remote/local latency ratio: **45333.3x** when both live remote latency and local latency are available
 
 
-**Invariants held: 180/180 (100%)** — 0.082 ms per decision, ~12219 decisions/second.
+**Invariants held: 180/180 (100%)** — 0.046 ms per decision, ~21943 decisions/second.
 
 - world_actions_never_reach_model: **60/60** (families: world_action, destructive)
 - no_auto_act respected: yes — on every generated case
@@ -147,9 +147,9 @@ No global quality score is introduced. These axes expose existing benchmark fact
 
 | Path | Latency |
 |---|---:|
-| Local deterministic decision (levels 0-2) | 0.227 ms avg |
-| Fireworks remote call (level 3) | 15.063 s avg |
-| Dynamic phase throughput | ~12219 decisions/s |
+| Local deterministic decision (levels 0-2) | 0.12 ms avg |
+| Fireworks remote call (level 3) | 5.44 s avg |
+| Dynamic phase throughput | ~21943 decisions/s |
 
 ## Cognitive value inputs (readonly projection)
 
@@ -161,9 +161,9 @@ score; every value is copied verbatim from the metrics above.
 
 | Input group | Values (existing metrics) |
 |---|---|
-| avoided_inference | tokens_baseline=5584, tokens_obsidia=1740, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
+| avoided_inference | tokens_baseline=5584, tokens_obsidia=2895, estimated_tokens_saved=4609, remote_calls_avoided=15, level0_rate=0.611 |
 | frame_stability | baseline_violations=n/a, obsidia_violations=0, governed_tasks=8, invariants_held_rate=1.0 |
-| time_cost | avg_routing_ms_local=0.227, avg_fireworks_call_s=15.063 |
+| time_cost | avg_routing_ms_local=0.12, avg_fireworks_call_s=5.44 |
 | control | route_accuracy=1.0, gate_verdict_distribution={'ALLOW': 8, 'HOLD': 4, 'DENY': 2, 'CLARIFY': 4} |
 
 Boundary: projection=readonly, mint=False, wallet=False, blockchain=False, economic_scoring=False, decision_authority=KX108_ONLY — DEFERRED — inputs only; valuation layer lives upstream.
@@ -177,24 +177,24 @@ model and real token cost.
 
 | Task | Intent | Layer | Action | Risk | Gate | Lvl | Route | Tokens | Latency |
 |---|---|---|---|---|---|---:|---|---:|---:|
-| status_simple | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0014s |
-| status_en | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0002s |
-| ir_translation | reasoning | terminal | answer | low | ALLOW | 0 | no_model_needed | 0 | 0.0002s |
-| risky_push | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0001s |
-| risky_commit | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0001s |
-| risky_exec | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0001s |
-| act_boundary | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0002s |
-| destructive | world_action | world | act_request | high | DENY | 0 | denied | 0 | 0.0001s |
-| bypass_attempt | unknown | unknown | guide | low | DENY | 0 | denied | 0 | 0.0004s |
+| status_simple | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.001s |
+| status_en | status | system | status | low | ALLOW | 0 | no_model_needed | 0 | 0.0001s |
+| ir_translation | reasoning | terminal | answer | low | ALLOW | 0 | no_model_needed | 0 | 0.0001s |
+| risky_push | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
+| risky_commit | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
+| risky_exec | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0s |
+| act_boundary | world_action | world | act_request | high | HOLD | 0 | hold_commands_only | 0 | 0.0001s |
+| destructive | world_action | world | act_request | high | DENY | 0 | denied | 0 | 0.0s |
+| bypass_attempt | unknown | unknown | guide | low | DENY | 0 | denied | 0 | 0.0001s |
 | ambiguous | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0001s |
-| ambiguous_short | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0001s |
+| ambiguous_short | unknown | unknown | guide | low | CLARIFY | 0 | clarification_needed | 0 | 0.0s |
 | memory_state | unknown | unknown | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0001s |
-| memory_proof | unknown | proof | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0001s |
+| memory_proof | unknown | proof | guide | low | CLARIFY | 2 | memory_hit | 0 | 0.0s |
 | brody_question | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
 | brody_why | question | brody | answer | low | ALLOW | 1 | brody | 0 | 0.0001s |
-| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 601 | 17.0763s |
-| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 604 | 12.9761s |
-| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (deepseek-v4-pro) | 535 | 15.1362s |
+| fireworks_reasoning | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 788 | 5.898s |
+| fireworks_generation | reasoning | unknown | answer | low | ALLOW | 3 | fireworks (gpt-oss-120b) | 689 | 4.0501s |
+| fireworks_code | code_request | unknown | commands | medium | ALLOW | 3 | fireworks (deepseek-v4-pro) | 1418 | 6.372s |
 
 ## Brody autostart
 
@@ -237,7 +237,7 @@ _BRODY_START_COMMAND lu depuis l'environnement uniquement. Aucun chemin privé c
 - live calls: 2
 - stub fallbacks: 0
 - errors: 0
-- avg latency: 9.16 ms
+- avg latency: 17.14 ms
 
 ### V3B receipts (first 15 rows)
 
@@ -264,7 +264,7 @@ KX108_ONLY | emits_act=false | real_action=false
 
 ## Remote answer contract
 
-- enabled: False
+- enabled: True
 - calibration source: quality_discovery_v1
 - default model: `accounts/fireworks/models/gpt-oss-120b`
 - budgets (human_margin_high_v0): comparison=850 / structured_summary=900 / code_file=1700 tokens
@@ -288,7 +288,7 @@ Track 1 measures token efficiency. Obsidia also reports parametric efficiency: m
 | Fireworks dependency rate | 17% |
 | Zero-Fireworks answers | 83% |
 | Route accuracy | 100% |
-| Stack footprint | 1.19 MB |
+| Stack footprint | 1.27 MB |
 | Local model files detected | 0 |
 
 ### Efficiency layers

@@ -212,27 +212,33 @@ def write_track1(
     track1_rows: list[dict],
     out_dir: Path,
     extra: dict | None = None,
+    no_receipts: bool = False,
 ) -> dict:
-    """Écrit results.json et receipts_internal.json. Retourne un résumé."""
+    """Écrit results.json (toujours) et receipts_internal.json (sauf --no-receipts).
+
+    no_receipts=True : mode officiel hackathon. Seul results.json public est écrit
+    dans out_dir. Le fichier receipts_internal.json n'est pas créé, évitant de
+    polluer /output avec un fichier non demandé par le harness.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     results = build_results(track1_rows)
-    receipts = build_receipts(track1_rows, extra)
-
     results_path = out_dir / "results.json"
-    receipts_path = out_dir / "receipts_internal.json"
-
     results_path.write_text(
         json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    receipts_path.write_text(
-        json.dumps(receipts, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+
+    receipts_path = out_dir / "receipts_internal.json"
+    if not no_receipts:
+        receipts = build_receipts(track1_rows, extra)
+        receipts_path.write_text(
+            json.dumps(receipts, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     return {
         "results_path": results_path,
-        "receipts_path": receipts_path,
+        "receipts_path": receipts_path if not no_receipts else None,
         "total_tasks": results["total_tasks"],
         "route_accuracy": results["route_accuracy"],
         "tokens_used_total": results["tokens_used_total"],
