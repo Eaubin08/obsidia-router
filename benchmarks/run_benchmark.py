@@ -44,6 +44,7 @@ from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa
 from benchmarks.value_inputs import cognitive_value_inputs  # noqa: E402
 from benchmarks.path_quality import quality_axes  # noqa: E402
 from benchmarks.random_dynamic import generate_random_batches  # noqa: E402
+from benchmarks.random_compare import flatten_cases, is_governed_random_case, raw_answer_text, raw_case_verdict  # noqa: E402
 
 OBSIDIA_VERDICT = {
     "hold_commands_only": "HOLD / commands-only (0 tokens)",
@@ -234,6 +235,54 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
             f"Replay: `{rd['replay']}`",
             "",
             "Random batches are exploratory. V1/V2 remain the stable reproducible suites.",
+            "",
+        ]
+
+    rc = report.get("random_comparative")
+    if rc:
+        saved_rate = (
+            f"{rc['tokens_saved_rate']:.0%}" if rc.get("tokens_saved_rate") is not None else "n/a"
+        )
+        lines += [
+            "",
+            "## Random comparative phase - same governed random prompts vs raw LLM",
+            "",
+            f"Mode: **{rc['mode']}**. Sample: **{rc['sampled_cases']} governed random prompts** "
+            f"from replayable seed `{rc['base_seed']}`.",
+            "",
+            "| Metric | Obsidia Router | Raw LLM |",
+            "|---|---:|---:|",
+            f"| Cases held / sampled | {rc['obsidia_held']}/{rc['sampled_cases']} | — |",
+            f"| Remote tokens | {rc['obsidia_tokens']} | {rc['raw_tokens']} |",
+            f"| Tokens avoided | {rc['tokens_saved']} ({saved_rate}) | — |",
+            f"| Governed random violations | 0 | {rc['raw_violations']}/{rc['raw_scored']} |",
+            f"| Raw errors | — | {rc['raw_errors']} |",
+            f"| Raw avg latency | — | {rc['raw_avg_latency_s']}s |",
+            "",
+            f"Replay: `{rc['replay']}`",
+            "",
+            "| Family | Obsidia route | Gate | Raw tokens | Raw verdict |",
+            "|---|---|---|---:|---|",
+        ]
+
+        for row in rc["rows"][:20]:
+            raw_verdict = (
+                "violation" if row["raw_violation"] is True
+                else "in-frame" if row["raw_violation"] is False
+                else row["raw_reason"]
+            )
+            lines.append(
+                f"| {row['family']} | {row['obsidia_route']} | {row['obsidia_gate']} | "
+                f"{row['raw_tokens']} | {raw_verdict} |"
+            )
+
+        if len(rc["rows"]) > 20:
+            lines.append(f"| ... | ... | ... | ... | {len(rc['rows']) - 20} more rows in JSON |")
+
+        lines += [
+            "",
+            "This phase sends the same governed stochastic sample to Obsidia and to the raw LLM. "
+            "It measures behavior, tokens and latency on identical prompts.",
             "",
         ]
 
@@ -533,6 +582,130 @@ def run_random_dynamic_batches(
     }
 
 
+
+def run_random_comparative_phase(
+    compare_cases: int,
+    num_batches: int,
+    batch_size: int,
+    base_seed: int | None,
+    memory_index: dict,
+    baseline_model: str,
+    live: bool,
+) -> dict:
+    """Same random prompts through Obsidia and raw LLM baseline."""
+
+    from benchmarks.dynamic_cases_v2 import check_case_v2
+
+    needed_batches = max(num_batches, 1)
+    needed_batch_size = max(batch_size, compare_cases)
+    plan = generate_random_batches(
+        needed_batches,
+        needed_batch_size,
+        base_seed=base_seed,
+    )
+    all_cases = flatten_cases(plan, needed_batches * needed_batch_size)
+    cases = [case for case in all_cases if is_governed_random_case(case)][:compare_cases]
+
+    rows = []
+    obsidia_ok = 0
+    obsidia_tokens = 0
+    raw_tokens = 0
+    raw_latency = 0.0
+    raw_scored = 0
+    raw_violations = 0
+    raw_errors = 0
+
+    t0 = time.perf_counter()
+
+    for case in cases:
+        obs_t0 = time.perf_counter()
+        decision = decide(case["request"], memory_index=memory_index)
+        obs_latency = time.perf_counter() - obs_t0
+        obs_verdict = check_case_v2(case, decision)
+        obsidia_ok += obs_verdict["ok"]
+
+        raw_answer = ""
+        raw_error = None
+        raw_tok = 0
+        raw_lat = 0.0
+        raw_score = None
+
+        if live:
+            try:
+                raw = fireworks.chat(baseline_model, case["request"])
+                raw_answer = raw_answer_text(raw)
+                raw_error = raw.get("error")
+                raw_tok = int(raw.get("total_tokens", 0) or 0)
+                raw_lat = float(raw.get("latency_s", 0.0) or 0.0)
+            except Exception as exc:
+                raw_error = f"{type(exc).__name__}: {exc}"
+        else:
+            raw_tok = estimate_tokens(case["request"])
+
+        if raw_error:
+            raw_errors += 1
+
+        if live and raw_answer and not raw_error and is_governed_random_case(case):
+            raw_score = check_baseline_answer(decision["route"], raw_answer)
+
+        raw_verdict = raw_case_verdict(case, raw_score)
+        if raw_verdict["scored"]:
+            raw_scored += 1
+            raw_violations += int(bool(raw_verdict["violation"]))
+
+        raw_tokens += raw_tok
+        raw_latency += raw_lat
+
+        rows.append({
+            "batch_id": case["batch_id"],
+            "case_id": case["case_id"],
+            "seed": case["seed"],
+            "family": case["family"],
+            "request": case["request"],
+            "obsidia_route": decision["route"],
+            "obsidia_gate": decision["gate"]["verdict"],
+            "obsidia_level": decision["level"],
+            "obsidia_model": decision["model"],
+            "obsidia_ok": obs_verdict["ok"],
+            "obsidia_failures": obs_verdict["failures"],
+            "obsidia_latency_s": round(obs_latency, 6),
+            "raw_tokens": raw_tok,
+            "raw_latency_s": round(raw_lat, 4),
+            "raw_error": raw_error,
+            "raw_scored": raw_verdict["scored"],
+            "raw_violation": raw_verdict["violation"],
+            "raw_reason": raw_verdict["reason"],
+            "raw_excerpt": raw_answer[:180].replace("\n", " ") if raw_answer else "",
+        })
+
+    elapsed = time.perf_counter() - t0
+    token_delta = raw_tokens - obsidia_tokens
+
+    return {
+        "mode": "live" if live else "dry-run",
+        "base_seed": plan["base_seed"],
+        "sampled_cases": len(cases),
+        "source_batches": needed_batches,
+        "source_batch_size": needed_batch_size,
+        "obsidia_held": obsidia_ok,
+        "obsidia_tokens": obsidia_tokens,
+        "raw_tokens": raw_tokens,
+        "tokens_saved": token_delta,
+        "tokens_saved_rate": round(token_delta / raw_tokens, 4) if raw_tokens else None,
+        "raw_scored": raw_scored,
+        "raw_violations": raw_violations,
+        "raw_errors": raw_errors,
+        "raw_avg_latency_s": round(raw_latency / len(cases), 4) if cases else 0.0,
+        "avg_total_case_ms": round(elapsed / len(cases) * 1000, 3) if cases else 0.0,
+        "replay": (
+            f"python benchmarks/run_benchmark.py --random-compare {compare_cases} "
+            f"--random-batches {needed_batches} --random-batch-size {needed_batch_size} "
+            f"--random-seed {plan['base_seed']}"
+        ),
+        "rows": rows,
+    }
+
+
 def main() -> int:
     live_baseline = "--live-baseline" in sys.argv
     n_dynamic = 30
@@ -550,6 +723,9 @@ def main() -> int:
         random_batch_size = int(sys.argv[sys.argv.index("--random-batch-size") + 1])
     if "--random-seed" in sys.argv:
         random_seed = int(sys.argv[sys.argv.index("--random-seed") + 1])
+    n_random_compare = 0
+    if "--random-compare" in sys.argv:
+        n_random_compare = int(sys.argv[sys.argv.index("--random-compare") + 1])
     tasks = json.loads((ROOT / "benchmarks" / "tasks.json").read_text(encoding="utf-8"))
     memory_index = load_memory_index()
     metrics = MetricsCollector()
@@ -639,6 +815,17 @@ def main() -> int:
             random_seed,
             memory_index,
         )
+    random_comparative = None
+    if n_random_compare:
+        random_comparative = run_random_comparative_phase(
+            n_random_compare,
+            n_random_batches,
+            random_batch_size,
+            random_seed,
+            memory_index,
+            baseline_model,
+            live_baseline,
+        )
 
     summary = metrics.summary()
     captured = [r for r in governance_table if r["violation"] is not None]
@@ -697,6 +884,7 @@ def main() -> int:
         "dynamic": dynamic,
         "dynamic_v2": dynamic_v2,
         "random_dynamic": random_dynamic,
+        "random_comparative": random_comparative,
         "tasks": rows,
     }
     report["quality_axes"] = quality_axes(report)
@@ -755,6 +943,21 @@ def main() -> int:
         if random_dynamic["failures"]:
             for f in random_dynamic["failures"]:
                 print(f"  FAIL {f}")
+
+    if random_comparative:
+        print()
+        print(f"RANDOM COMPARATIVE PHASE ({random_comparative['mode']}, "
+              f"seed {random_comparative['base_seed']}, "
+              f"{random_comparative['sampled_cases']} same prompts)")
+        print(f"  obsidia held       : "
+              f"{random_comparative['obsidia_held']}/{random_comparative['sampled_cases']}")
+        print(f"  tokens raw/obsidia : "
+              f"{random_comparative['raw_tokens']}/{random_comparative['obsidia_tokens']} "
+              f"(saved {random_comparative['tokens_saved']})")
+        print(f"  raw violations     : "
+              f"{random_comparative['raw_violations']}/{random_comparative['raw_scored']}")
+        print(f"  raw errors         : {random_comparative['raw_errors']}")
+        print(f"  replay             : {random_comparative['replay']}")
 
     if governance_scored:
         print()
