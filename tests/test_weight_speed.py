@@ -165,7 +165,11 @@ def test_public_results_still_clean():
         assert results_path.exists()
         content = results_path.read_text(encoding="utf-8")
         results = json.loads(content)
-        for key in ("format_version", "total_tasks", "tasks", "route_accuracy"):
+        # Mode officiel AMD : liste pure {task_id, answer}.
+        assert isinstance(results, list)
+        for row in results:
+            assert set(row.keys()) == {"task_id", "answer"}
+        for key in ():
             assert key in results
         for forbidden in ("remote_answer_contract", "metrics_coverage", "run_id"):
             assert f'"{forbidden}"' not in content, (

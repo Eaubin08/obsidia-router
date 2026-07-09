@@ -320,6 +320,5 @@ def test_official_output_clean_no_imported_proof_metrics():
         assert "imported_proof_metrics" not in content
         assert "scored_track1" not in content
         # Standard public fields must remain
-        assert "format_version" in results
-        assert "total_tasks" in results
-        assert "tasks" in results
+        assert isinstance(results, list)  # schema officiel AMD
+        assert all(set(r.keys()) == {"task_id", "answer"} for r in results)

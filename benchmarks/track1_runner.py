@@ -110,7 +110,33 @@ def track1_answer(row: dict) -> str:
     return f"Route: {route}."
 
 
+# ── Normalisation input harness AMD ──────────────────────────────────────────
+
+def normalize_task(task: dict) -> dict:
+    """Accepte les deux schemas d'entree :
+    officiel AMD  : {"task_id": ..., "prompt": ...}
+    interne       : {"id": ..., "request": ...}
+    """
+    return {
+        **task,
+        "id": task.get("task_id") or task.get("id"),
+        "request": task.get("prompt") or task.get("request"),
+    }
+
+
 # ── Construction des deux fichiers de sortie ──────────────────────────────────
+
+def build_official_results(track1_rows: list[dict]) -> list[dict]:
+    """Format officiel harness AMD : liste JSON simple, rien d'autre.
+
+    [{"task_id": "...", "answer": "..."}, ...]
+    Toutes les metriques restent dans benchmark_report.json / receipts.
+    """
+    return [
+        {"task_id": row["id"], "answer": track1_answer(row)}
+        for row in track1_rows
+    ]
+
 
 def build_results(track1_rows: list[dict]) -> dict:
     """Construit le dict results.json (public, sans gouvernance)."""
@@ -217,17 +243,21 @@ def write_track1(
 ) -> dict:
     """Écrit results.json (toujours) et receipts_internal.json (sauf --no-receipts).
 
-    no_receipts=True : mode officiel hackathon. Seul results.json public est écrit
-    dans out_dir. Le fichier receipts_internal.json n'est pas créé, évitant de
-    polluer /output avec un fichier non demandé par le harness.
+    no_receipts=True : mode officiel hackathon AMD. results.json est alors la
+    LISTE simple [{"task_id","answer"}] exigee par le harness — aucune metrique,
+    aucun champ interne. receipts_internal.json n'est pas cree.
+
+    no_receipts=False : mode audit local. results.json garde le format riche
+    interne (format_version/total_tasks/tasks) + receipts complets.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     results = build_results(track1_rows)
     results_path = out_dir / "results.json"
+    official_payload = build_official_results(track1_rows) if no_receipts else results
     results_path.write_text(
-        json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
+        json.dumps(official_payload, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
     receipts_path = out_dir / "receipts_internal.json"
@@ -257,7 +287,8 @@ def standalone_run(tasks_file: Path, out_dir: Path) -> int:
     from app.metrics.collector import MetricsCollector
     from app.router.decision import DEFAULT_MODEL_LADDER
 
-    tasks = json.loads(tasks_file.read_text(encoding="utf-8"))
+    tasks = [normalize_task(t) for t in
+             json.loads(tasks_file.read_text(encoding="utf-8"))]
     memory_index = load_memory_index()
     metrics = MetricsCollector()
     ladder = fireworks.allowed_models() or DEFAULT_MODEL_LADDER

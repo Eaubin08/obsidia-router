@@ -195,7 +195,8 @@ def test_prompt_code_no_planning():
 
 def test_prompt_fr_contains_french_instruction():
     prompt = build_contract_prompt("comparison", False, False, "fr", 150)
-    assert "Answer in French" in prompt
+    # Regle AMD Track 1 : anglais obligatoire meme pour une requete FR.
+    assert "Answer in English" in prompt
 
 
 def test_prompt_en_contains_english_instruction():

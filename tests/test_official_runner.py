@@ -165,7 +165,11 @@ def test_official_results_json_clean():
         results = json.loads(content)
 
         # Clés publiques obligatoires
-        for key in ("format_version", "total_tasks", "tasks", "route_accuracy"):
+        # Mode officiel AMD : results.json est une LISTE pure {task_id, answer}.
+        assert isinstance(results, list)
+        for row in results:
+            assert set(row.keys()) == {"task_id", "answer"}
+        for key in ():
             assert key in results, f"Clé publique manquante: {key}"
 
         # Champs internes interdits : vérification par clé JSON exacte
@@ -177,12 +181,9 @@ def test_official_results_json_clean():
         # "ir" est une clé interne courte — vérifier le pattern clé JSON
         assert '"ir":' not in content, "Clé interne '\"ir\":' trouvée dans results.json"
 
-        # Chaque tâche doit avoir les champs attendus
-        for t in results["tasks"]:
-            assert "id" in t
-            assert "route" in t
-            assert "answer" in t
-            assert "tokens_used" in t
+        # Schema officiel AMD : chaque ligne = {task_id, answer} uniquement
+        for t in results:
+            assert set(t.keys()) == {"task_id", "answer"}
 
 
 # ── 5. Dockerfile contient les arguments officiels ────────────────────────────

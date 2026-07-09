@@ -177,7 +177,9 @@ def build_contract_prompt(
     language: str,
     target_words: int,
 ) -> str:
-    lang_instr = "Answer in French." if language == "fr" else "Answer in English."
+    # AMD Track 1 rule: every answer must be in English, regardless of the
+    # request language. The detected language stays available as telemetry.
+    lang_instr = "Answer in English."
     base = (
         "Answer the request directly and concisely. "
         "Do not start with 'The user asks', 'The user wants', 'Understand the Goal', "
