@@ -34,18 +34,18 @@ _EXCLUDED_MODELS: dict[str, str] = {
 # Boundary / clarification: compact (no Fireworks call in practice)
 
 _BUDGETS: dict[str, int] = {
-    "comparison":         850,
-    "structured_summary": 900,
+    "comparison":         600,
+    "structured_summary": 650,
     "code_file":         1700,
-    "direct_answer":      850,
+    "direct_answer":      700,
     "clarification":      120,
 }
 
 _TARGET_WORDS: dict[str, int] = {
-    "comparison":         150,
-    "structured_summary": 180,
+    "comparison":         100,
+    "structured_summary": 120,
     "code_file":          400,
-    "direct_answer":      150,
+    "direct_answer":      100,
     "clarification":       60,
 }
 

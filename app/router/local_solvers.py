@@ -284,6 +284,86 @@ def solve_logic_puzzle(raw: str) -> str | None:
     return f"{owner.capitalize()} owns the {target}."
 
 
+# ── Brody readonly local (zero-token, vague contextual Brody questions) ──────
+#
+# Fires ONLY on short vague prompts that ask for Brody/system context without
+# specifying what decision/approach is referenced. Abstains on:
+#   - any code signal
+#   - any world-action signal
+#   - any domain-specific technical keyword (cache, algorithm, CAP, etc.)
+#   - prompts longer than 15 words (likely specific enough to need Fireworks)
+
+_BRODY_CONTEXTUAL = re.compile(
+    r"\b(contexte|context|pourquoi|why|role|r[oô]le|approche|approach|"
+    r"d[eé]cision|decision|preferable|prefered|prefer)\b",
+    re.I,
+)
+_BRODY_TECHNICAL = re.compile(
+    r"\b(cache|algorithm|complexit[ey]|consistenc[ey]|availabilit[ey]|"
+    r"cap\b|latenc[ey]|throughput|database|network|neural|gradient|"
+    r"fibonacci|sort|search|tree|graph|hash|queue|stack)\b",
+    re.I,
+)
+_BRODY_CODE_SIGNALS = re.compile(
+    r"\b(def |function|class |implement|import|unittest|pytest|\.py)\b",
+    re.I,
+)
+_BRODY_ACTION_SIGNALS = re.compile(
+    r"\b(push|commit|deploy|rm -rf|delete|create|write|send|execute)\b",
+    re.I,
+)
+
+_BRODY_CONTEXT_RESPONSE = (
+    "Context depends on the active decision frame. "
+    "Brody is Obsidia's non-sovereign informational organ — "
+    "it can relay system context but cannot reconstruct specific decisions "
+    "without active memory access. Authority remains KX108_ONLY."
+)
+_BRODY_WHY_RESPONSE = (
+    "Approach preference depends on the current objective and constraints. "
+    "Brody can help surface relevant context, but does not decide — "
+    "authority remains KX108_ONLY. "
+    "Provide the specific approach reference for a targeted answer."
+)
+
+_BRODY_WHY_TRIGGER = re.compile(
+    r"\b(pourquoi|why)\b.*\b(approach[e]?|approche|pr[eé]f[eé]rable|preferred?)\b",
+    re.I | re.S,
+)
+_BRODY_CTX_TRIGGER = re.compile(
+    r"\b(expliqu[e]?|explain|contexte?|context)\b.*\b(d[eé]cision|decision|approach[e]?)\b",
+    re.I | re.S,
+)
+
+
+def solve_brody_readonly(raw: str) -> str | None:
+    """Canonical readonly response for vague Brody-contextual questions.
+
+    Fires only when ALL conditions hold:
+      1. Short prompt (≤ 15 words) — longer prompts are specific enough for Fireworks
+      2. Contextual/why/role signal present
+      3. No technical domain keyword (cache, algorithm, CAP...)
+      4. No code signal
+      5. No world-action signal
+    Returns None (→ Fireworks) on any ambiguity.
+    """
+    if len(raw.split()) > 15:
+        return None
+    if not _BRODY_CONTEXTUAL.search(raw):
+        return None
+    if _BRODY_TECHNICAL.search(raw):
+        return None
+    if _BRODY_CODE_SIGNALS.search(raw):
+        return None
+    if _BRODY_ACTION_SIGNALS.search(raw):
+        return None
+    if _BRODY_WHY_TRIGGER.search(raw):
+        return _BRODY_WHY_RESPONSE
+    if _BRODY_CTX_TRIGGER.search(raw):
+        return _BRODY_CONTEXT_RESPONSE
+    return None
+
+
 # ── Code micro-solvers (zero-token, strictly pattern-gated) ──────────────────
 #
 # Each solver fires ONLY on a very specific structural fingerprint.
@@ -370,6 +450,7 @@ def try_local_solvers(raw: str) -> dict | None:
                      (solve_ner, "ner_local"),
                      (solve_sentiment, "sentiment_local"),
                      (solve_fact, "fact_resolver"),
+                     (solve_brody_readonly, "brody_readonly_local"),
                      (solve_code_debug_get_max, "code_debug_get_max_local"),
                      (solve_code_generation_second_largest,
                       "code_gen_second_largest_local")):

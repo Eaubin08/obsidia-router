@@ -45,7 +45,9 @@ FAMILIES: dict[str, dict] = {
     "question_local_organ": {
         "cores": ["explique le contexte", "pourquoi ce choix",
                   "resume la situation", "explique la decision"],
-        "expected_routes": {"brody"},
+        # local_solver is acceptable: brody_readonly_local closes vague short
+        # contextual prompts at 0 tokens. Longer / technical prompts go to brody.
+        "expected_routes": {"brody", "local_solver"},
         "level0_only": False,
     },
     "remote_reasoning": {

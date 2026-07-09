@@ -83,7 +83,11 @@ def test_frame_still_wins_over_solver():
 
 def test_non_solver_requests_unaffected():
     assert decide("status")["route"] == "no_model_needed"
-    assert try_local_solvers("explique le contexte de la decision") is None
+    # Short brody-contextual prompts now close via brody_readonly_local.
+    # Verify that longer / technical prompts still escalate.
+    assert try_local_solvers(
+        "analyse et compare le contexte de cache distribue et derive la complexite"
+    ) is None
 
 
 # ── Summary one-sentence (extractive local compressor) ───────────────────────

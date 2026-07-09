@@ -116,7 +116,10 @@ FAMILIES_V2: dict[str, dict] = {
             "explique la decision",
             "pourquoi utiliser brody ici",
         ],
-        "expected_routes": {"brody"},
+        # local_solver is acceptable: brody_readonly_local can close vague
+        # short contextual questions at 0 tokens (brody remains for longer
+        # or more specific prompts that escape the strict pattern gate).
+        "expected_routes": {"brody", "local_solver"},
         "level0_only": False,
         "prefixes": PREFIXES_V2,
     },

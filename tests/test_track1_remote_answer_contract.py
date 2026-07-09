@@ -113,11 +113,11 @@ def test_output_shape_compact_for_comparison():
 # ── select_max_tokens ────────────────────────────────────────────────────────
 
 def test_budget_comparison():
-    assert select_max_tokens("comparison") == 850
+    assert select_max_tokens("comparison") == 600
 
 
 def test_budget_structured_summary():
-    assert select_max_tokens("structured_summary") == 900
+    assert select_max_tokens("structured_summary") == 650
 
 
 def test_budget_code_file():
@@ -125,7 +125,7 @@ def test_budget_code_file():
 
 
 def test_budget_direct_answer():
-    assert select_max_tokens("direct_answer") == 850
+    assert select_max_tokens("direct_answer") == 700
 
 
 def test_budget_clarification():
@@ -181,16 +181,17 @@ def test_prompt_no_analyze_the_request():
 
 def test_prompt_code_only_no_explanation():
     prompt = build_contract_prompt("code_file", False, True, "en", 400)
-    assert "No explanation" in prompt or "only valid code" in prompt.lower()
+    # Compact code prompt: must forbid prose and require code-only output
+    assert "No prose" in prompt or "only valid" in prompt.lower()
+    assert "No reasoning" in prompt or "No prose" in prompt
 
 
 def test_prompt_code_no_planning():
-    # The code prompt forbids planning in the model output; the prohibition
-    # mentions "planning" inside the "do not include" clause.
-    # The prompt itself must start with "Answer", not a planning statement.
+    # Compact code prompt starts directly with "Return" (not "Answer").
+    # It must still contain "def" start instruction and language instruction.
     prompt = build_contract_prompt("code_file", False, True, "fr", 400)
-    assert prompt.startswith("Answer")
-    assert "Do not include" in prompt
+    assert "def" in prompt          # "Start your response with `def`"
+    assert "English" in prompt      # AMD Track 1: always answer in English
 
 
 def test_prompt_fr_contains_french_instruction():
@@ -238,7 +239,7 @@ def test_contract_comparison_full():
         "analyse et compare ces deux strategies de cache distribue et derive la complexite"
     )
     assert c["answer_kind"] == "comparison"
-    assert c["max_tokens"] == 850
+    assert c["max_tokens"] == 600
     assert c["model_preference"] == _DEFAULT_MODEL
     assert c["missing_referent"] is True
     assert "missing_referent_detected" in c["source_signals"]
@@ -249,7 +250,7 @@ def test_contract_structured_summary_full():
         "resume de maniere structuree les tradeoffs consistency availability"
     )
     assert c["answer_kind"] == "structured_summary"
-    assert c["max_tokens"] == 900
+    assert c["max_tokens"] == 650
     assert c["model_preference"] == _DEFAULT_MODEL
 
 

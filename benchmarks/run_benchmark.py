@@ -1210,7 +1210,11 @@ def main() -> int:
                 metrics.records[-1]["remote_call_avoided"] = False
         routing_latency = round(time.perf_counter() - t0, 4)
 
-        ok = routed_as == task.get("expected_route", routed_as)
+        _allowed = task.get("allowed_routes")
+        if _allowed:
+            ok = routed_as in _allowed
+        else:
+            ok = routed_as == task.get("expected_route", routed_as)
         correct += ok
         baseline_calls += 1
 
