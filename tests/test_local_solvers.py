@@ -70,3 +70,30 @@ def test_frame_still_wins_over_solver():
 def test_non_solver_requests_unaffected():
     assert decide("status")["route"] == "no_model_needed"
     assert try_local_solvers("explique le contexte de la decision") is None
+
+
+# ── NER + Logic V1 ────────────────────────────────────────────────────────────
+
+def test_ner_practice_05():
+    from app.router.local_solvers import solve_ner
+    a = solve_ner("Extract all named entities and their types from: "
+                  "Maria Sanchez joined Fireworks AI in Berlin last March.")
+    assert a == ("Maria Sanchez - PERSON; Fireworks AI - ORGANIZATION; "
+                 "Berlin - LOCATION; March - DATE")
+
+def test_ner_abstains_on_unknown_entity():
+    from app.router.local_solvers import solve_ner
+    assert solve_ner("Extract entities from: Xylophorus visited Qbrtz.") is None
+
+def test_logic_practice_07():
+    from app.router.local_solvers import solve_logic_puzzle
+    a = solve_logic_puzzle("Three friends, Sam, Jo, and Lee, each own a "
+                           "different pet: cat, dog, bird. Sam does not own "
+                           "the bird. Jo owns the dog. Who owns the cat?")
+    assert a == "Sam owns the cat."
+
+def test_logic_abstains_without_unique_solution():
+    from app.router.local_solvers import solve_logic_puzzle
+    assert solve_logic_puzzle("Sam, Jo and Lee own pets. Who owns the cat?") is None
+    assert solve_logic_puzzle("Three friends, Sam, Jo, and Lee, each own a "
+                              "different pet: cat, dog, bird. Who owns the cat?") is None

@@ -92,14 +92,119 @@ def solve_math(raw: str) -> str | None:
     return None
 
 
+# ── Named entity recognition (rule-based, abstain on any doubt) ──────────────
+
+_MONTHS = {"january", "february", "march", "april", "may", "june", "july",
+           "august", "september", "october", "november", "december"}
+_ORG_SUFFIX = {"AI", "Inc", "Inc.", "Corp", "Corp.", "Ltd", "Ltd.", "LLC",
+               "GmbH", "University", "Institute", "Company", "Labs", "Group"}
+_KNOWN_PLACES = {"berlin", "paris", "london", "tokyo", "madrid", "rome",
+                 "amsterdam", "vienna", "dublin", "lisbon", "brussels",
+                 "munich", "zurich", "geneva", "sydney", "toronto", "austin",
+                 "seattle", "boston", "chicago", "france", "germany", "spain",
+                 "italy", "japan", "canada", "australia", "europe", "usa"}
+
+_NER_TRIGGER = re.compile(r"\bextract\b.*\bentit|named entit", re.I)
+
+
+def solve_ner(raw: str) -> str | None:
+    m = re.search(r"from\s*:\s*(.+)$", raw, re.I | re.S)
+    if not (_NER_TRIGGER.search(raw) and m):
+        return None
+    text = m.group(1).strip()
+    tokens = re.findall(r"[A-Za-z][A-Za-z']*\.?", text)
+    tokens = [t.rstrip(".") if t.rstrip(".") not in _ORG_SUFFIX else t
+              for t in tokens]
+    entities: list[tuple[str, str]] = []
+    i = 0
+    while i < len(tokens):
+        if tokens[i][0].isupper():
+            group = [tokens[i]]
+            while i + 1 < len(tokens) and tokens[i + 1][0].isupper():
+                i += 1
+                group.append(tokens[i])
+            name = " ".join(group)
+            low = name.lower()
+            if low in _MONTHS:
+                entities.append((name, "DATE"))
+            elif low in _KNOWN_PLACES:
+                entities.append((name, "LOCATION"))
+            elif group[-1] in _ORG_SUFFIX:
+                entities.append((name, "ORGANIZATION"))
+            elif len(group) >= 2:
+                entities.append((name, "PERSON"))
+            else:
+                return None  # entite inclassable avec certitude -> escalade
+        i += 1
+    if not entities:
+        return None
+    return "; ".join(f"{n} - {k}" for n, k in entities)
+
+
+# ── Logical deduction (constraint puzzle by enumeration) ─────────────────────
+
+_PUZZLE_ITEMS = re.compile(
+    r"each\s+owns?\s+a\s+different\s+\w+\s*:\s*([\w\s,]+?)(?:\.|$)", re.I)
+_C_NEG = re.compile(r"(\w+)\s+does\s+not\s+own\s+the\s+(\w+)", re.I)
+_C_POS = re.compile(r"(\w+)\s+owns\s+the\s+(\w+)", re.I)
+_Q_WHO = re.compile(r"who\s+owns\s+the\s+(\w+)", re.I)
+
+
+def solve_logic_puzzle(raw: str) -> str | None:
+    from itertools import permutations
+    items_m, who_m = _PUZZLE_ITEMS.search(raw), _Q_WHO.search(raw)
+    if not (items_m and who_m):
+        return None
+    items = [w.strip().lower() for w in re.split(r",|\band\b", items_m.group(1))
+             if w.strip()]
+    target = who_m.group(1).lower()
+    if target not in items or len(items) < 2:
+        return None
+    neg = [(a.lower(), b.lower()) for a, b in _C_NEG.findall(raw)]
+    # "does not own" matche aussi _C_POS ("not own the X" contient "own the") :
+    # une paire presente en negatif ne peut pas etre un positif.
+    pos = [(a.lower(), b.lower()) for a, b in _C_POS.findall(raw)
+           if (a.lower(), b.lower()) not in neg
+           and a.lower() not in ("not", "who", "which", "whoever")]
+    pos = [p for p in pos if p[1] in items]
+    neg = [n for n in neg if n[1] in items]
+    if not (pos or neg):
+        return None
+    # Les proprietaires : les noms capitalises du texte qui apparaissent
+    # dans les contraintes, completes par les autres capitalises non-items.
+    caps = []
+    for w in re.findall(r"\b[A-Z][a-z]+\b", raw):
+        lw = w.lower()
+        if lw not in caps and lw not in items and lw not in (
+                "three", "who", "the", "each", "friends", "and"):
+            caps.append(lw)
+    constraint_names = {a for a, _ in pos + neg}
+    if not constraint_names.issubset(set(caps)):
+        return None
+    names = caps[:len(items)]
+    if len(names) != len(items):
+        return None
+    solutions = []
+    for perm in permutations(items):
+        assign = dict(zip(names, perm))
+        if all(assign.get(a) == b for a, b in pos) and \
+           all(assign.get(a) != b for a, b in neg):
+            solutions.append(assign)
+    if len(solutions) != 1:
+        return None  # zero ou plusieurs solutions : escalade
+    owner = next(n for n, it in solutions[0].items() if it == target)
+    return f"{owner.capitalize()} owns the {target}."
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def try_local_solvers(raw: str) -> dict | None:
     """Returns {"answer", "solver"} when a category closes locally, else None."""
-    ans = solve_math(raw)
-    if ans is not None:
-        return {"answer": ans, "solver": "math_local"}
-    ans = solve_sentiment(raw)
-    if ans is not None:
-        return {"answer": ans, "solver": "sentiment_local"}
+    for fn, name in ((solve_math, "math_local"),
+                     (solve_logic_puzzle, "logic_local"),
+                     (solve_ner, "ner_local"),
+                     (solve_sentiment, "sentiment_local")):
+        ans = fn(raw)
+        if ans is not None:
+            return {"answer": ans, "solver": name}
     return None
