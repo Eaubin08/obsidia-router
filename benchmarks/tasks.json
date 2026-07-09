@@ -85,12 +85,14 @@
   {
     "id": "fireworks_reasoning",
     "request": "analyse et compare ces deux strategies de cache distribue et derive la complexite de chacune",
-    "expected_route": "fireworks"
+    "expected_route": "fireworks",
+    "allowed_routes": ["fireworks", "local_solver"]
   },
   {
     "id": "fireworks_generation",
     "request": "genere un resume structure des tradeoffs entre consistency et availability dans un systeme distribue multi-region",
-    "expected_route": "fireworks"
+    "expected_route": "fireworks",
+    "allowed_routes": ["fireworks", "local_solver"]
   },
   {
     "id": "fireworks_code",

@@ -1680,6 +1680,7 @@ def main() -> int:
     else:
         print(f"estimated tokens saved: {summary['estimated_tokens_saved']}")
     print(f"level-0 rate          : {summary['level0_rate']:.0%}")
+    _api_key_present = bool(__import__("os").environ.get("FIREWORKS_API_KEY", "").strip())
     if live_calls and not errors:
         print(f"fireworks LIVE        : {live_calls} calls OK, "
               f"{summary['fireworks_tokens']} real tokens, "
@@ -1688,6 +1689,9 @@ def main() -> int:
         print(f"fireworks ERRORS      : {len(errors)} call(s) failed")
         for r in errors:
             print(f"  - {r.get('model')}: {r['error']}")
+    elif _api_key_present:
+        print("fireworks LIVE configured : 0 calls needed, 0 real tokens "
+              "(all tasks closed locally or by gates)")
     else:
         print("fireworks             : dry-run (no FIREWORKS_API_KEY)")
     print(f"report -> {out}")

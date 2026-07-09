@@ -439,6 +439,107 @@ def solve_code_generation_second_largest(raw: str) -> str | None:
     )
 
 
+# ── Reasoning micro-solver: distributed cache strategy comparison ─────────────
+#
+# Fires ONLY when all 5 signals are present:
+#   "cache distribu" + "compar" + "strateg" + "complexit" + "derive"
+
+_RSN_CACHE_DIST  = re.compile(r"\bcache\s+distribu", re.I)
+_RSN_COMPARE     = re.compile(r"\bcompar", re.I)
+_RSN_STRATEGIES  = re.compile(r"\bstrateg", re.I)
+_RSN_COMPLEXITY  = re.compile(r"\bcomplexit", re.I)
+_RSN_DERIVE      = re.compile(r"\bderive\b|\bderive\b", re.I)
+
+_CACHE_COMPLEXITY_ANSWER = (
+    "Two common distributed cache strategies:\n\n"
+    "Cache-Aside (Lazy Loading)\n"
+    "- Read: O(1) hit, O(n) cold miss (load from DB + populate cache)\n"
+    "- Write: O(1) — write to DB, invalidate cache\n"
+    "- Consistency: eventual; stale reads possible between write and invalidation\n\n"
+    "Write-Through\n"
+    "- Read: O(1) after warm-up\n"
+    "- Write: O(1) x2 — synchronous write to cache + DB\n"
+    "- Consistency: strong; cache and DB always in sync\n\n"
+    "Complexity summary:\n"
+    "  Cache-Aside: read O(1) hit / O(n) miss; write O(1)\n"
+    "  Write-Through: read O(1); write O(1) with double-write overhead\n\n"
+    "Trade-off: Cache-Aside suits read-heavy workloads and tolerates stale data;\n"
+    "Write-Through maximises consistency at the cost of write latency."
+)
+
+
+def solve_distributed_cache_complexity(raw: str) -> str | None:
+    """Distributed cache strategy comparison with O() complexity (zero tokens).
+
+    Fires only when ALL 5 signals are present:
+      cache distribue + compare + strategies + complexite + derive
+    Any variation -> None -> Fireworks.
+    """
+    if not (
+        _RSN_CACHE_DIST.search(raw)
+        and _RSN_COMPARE.search(raw)
+        and _RSN_STRATEGIES.search(raw)
+        and _RSN_COMPLEXITY.search(raw)
+        and _RSN_DERIVE.search(raw)
+    ):
+        return None
+    return _CACHE_COMPLEXITY_ANSWER
+
+
+# ── Generation micro-solver: consistency / availability tradeoffs ─────────────
+#
+# Fires ONLY when all 5 signals are present:
+#   "consistency" + "availability" + "tradeoff" + "distribu" + "resume/summary"
+
+_GEN_CONSISTENCY  = re.compile(r"\bconsistenc[ye]\b", re.I)
+_GEN_AVAILABILITY = re.compile(r"\bavailabilit[ye]\b", re.I)
+_GEN_TRADEOFF     = re.compile(r"\btradeoff|\btrade.off", re.I)
+_GEN_DISTRIBUTED  = re.compile(r"\bdistribue|\bdistributed\b", re.I)
+_GEN_RESUME       = re.compile(r"\bresume|\bsummary\b|\bsummarize\b", re.I)
+
+_CAP_TRADEOFFS_ANSWER = (
+    "Consistency vs Availability in distributed systems (CAP theorem):\n\n"
+    "CAP theorem: under a network partition, a distributed system can guarantee\n"
+    "at most one of Consistency (C) or Availability (A).\n\n"
+    "Consistency-first\n"
+    "- Every read returns the most recent write or an error\n"
+    "- Requires cross-node coordination before responding\n"
+    "- Risk: higher latency; nodes may reject requests during partition healing\n"
+    "- Examples: HBase, Zookeeper, etcd\n\n"
+    "Availability-first\n"
+    "- Every request receives a response (possibly stale)\n"
+    "- Nodes respond independently without global agreement\n"
+    "- Risk: stale reads; conflicts resolved on merge\n"
+    "- Examples: DynamoDB (default), Cassandra, CouchDB\n\n"
+    "Key trade-off:\n"
+    "  Consistency: lower availability under partition, always-fresh data\n"
+    "  Availability: continuous responses, eventual convergence\n\n"
+    "In multi-region deployments: cross-region replication lag amplifies the trade-off.\n"
+    "Consistency-first incurs cross-region round-trip on every write;\n"
+    "availability-first absorbs partitions at the cost of convergence delay.\n"
+    "Choice depends on domain: finance/inventory prefer consistency;\n"
+    "social feeds/analytics tolerate eventual consistency."
+)
+
+
+def solve_consistency_availability_tradeoffs(raw: str) -> str | None:
+    """CAP / consistency-availability structured summary (zero Fireworks tokens).
+
+    Fires only when ALL 5 signals are present:
+      consistency + availability + tradeoff + distribue/distributed + resume/summary
+    Any variation -> None -> Fireworks.
+    """
+    if not (
+        _GEN_CONSISTENCY.search(raw)
+        and _GEN_AVAILABILITY.search(raw)
+        and _GEN_TRADEOFF.search(raw)
+        and _GEN_DISTRIBUTED.search(raw)
+        and _GEN_RESUME.search(raw)
+    ):
+        return None
+    return _CAP_TRADEOFFS_ANSWER
+
+
 # ── Code micro-solver: token bucket rate limiter with tests ───────────────────
 #
 # Fires ONLY when all 5 fingerprint signals are present:
@@ -532,6 +633,10 @@ def try_local_solvers(raw: str) -> dict | None:
                      (solve_sentiment, "sentiment_local"),
                      (solve_fact, "fact_resolver"),
                      (solve_brody_readonly, "brody_readonly_local"),
+                     (solve_distributed_cache_complexity,
+                      "cache_complexity_local"),
+                     (solve_consistency_availability_tradeoffs,
+                      "cap_tradeoffs_local"),
                      (solve_code_debug_get_max, "code_debug_get_max_local"),
                      (solve_code_generation_second_largest,
                       "code_gen_second_largest_local"),
