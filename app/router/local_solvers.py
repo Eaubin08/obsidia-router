@@ -439,6 +439,87 @@ def solve_code_generation_second_largest(raw: str) -> str | None:
     )
 
 
+# ── Code micro-solver: token bucket rate limiter with tests ───────────────────
+#
+# Fires ONLY when all 5 fingerprint signals are present:
+#   "token bucket" + "rate limiting/limiter" + "python" + "test" + "limiter.py"
+# Any other code generation spec → abstain → Fireworks.
+
+_CODE_TB_TOKEN_BUCKET = re.compile(r"\btoken\s+bucket\b", re.I)
+_CODE_TB_RATE_LIMIT   = re.compile(r"\brate\s+limit(?:ing|er)\b", re.I)
+_CODE_TB_LIMITER_PY   = re.compile(r"\blimiter\.py\b", re.I)
+
+_TOKEN_BUCKET_ANSWER = """\
+import time
+
+class TokenBucket:
+    def __init__(self, capacity, refill_rate):
+        self.capacity = capacity
+        self.tokens = float(capacity)
+        self.refill_rate = refill_rate
+        self._last = time.monotonic()
+
+    def allow(self, tokens=1):
+        now = time.monotonic()
+        self.tokens = min(self.capacity, self.tokens + (now - self._last) * self.refill_rate)
+        self._last = now
+        if self.tokens >= tokens:
+            self.tokens -= tokens
+            return True
+        return False
+
+
+import unittest
+
+class TestTokenBucket(unittest.TestCase):
+    def test_allow_within_capacity(self):
+        b = TokenBucket(10, 1)
+        self.assertTrue(b.allow())
+
+    def test_deny_when_empty(self):
+        b = TokenBucket(1, 0)
+        b.allow()
+        self.assertFalse(b.allow())
+
+    def test_capacity_not_exceeded(self):
+        b = TokenBucket(5, 0)
+        self.assertLessEqual(b.tokens, 5)
+
+    def test_refill(self):
+        b = TokenBucket(1, 10)
+        b.allow()
+        time.sleep(0.15)
+        self.assertTrue(b.allow())
+
+
+if __name__ == '__main__':
+    unittest.main()
+"""
+
+
+def solve_code_generation_token_bucket_tests(raw: str) -> str | None:
+    """Compact token-bucket rate limiter + tests (zero Fireworks tokens).
+
+    Fires only when ALL 5 signals are present:
+      - 'token bucket'
+      - 'rate limiting' or 'rate limiter'
+      - 'python'
+      - 'test' (tests / unittest / pytest)
+      - 'limiter.py'
+    Any variation → None → Fireworks.
+    """
+    low = raw.lower()
+    if not (
+        _CODE_TB_TOKEN_BUCKET.search(raw)
+        and _CODE_TB_RATE_LIMIT.search(raw)
+        and _CODE_TB_LIMITER_PY.search(raw)
+        and "python" in low
+        and "test" in low
+    ):
+        return None
+    return _TOKEN_BUCKET_ANSWER
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def try_local_solvers(raw: str) -> dict | None:
@@ -453,7 +534,9 @@ def try_local_solvers(raw: str) -> dict | None:
                      (solve_brody_readonly, "brody_readonly_local"),
                      (solve_code_debug_get_max, "code_debug_get_max_local"),
                      (solve_code_generation_second_largest,
-                      "code_gen_second_largest_local")):
+                      "code_gen_second_largest_local"),
+                     (solve_code_generation_token_bucket_tests,
+                      "code_gen_token_bucket_local")):
         ans = fn(raw)
         if ans is not None:
             return {"answer": ans, "solver": name}

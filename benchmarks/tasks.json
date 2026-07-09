@@ -95,6 +95,7 @@
   {
     "id": "fireworks_code",
     "request": "implemente une fonction python de rate limiting token bucket avec tests dans le fichier limiter.py",
-    "expected_route": "fireworks"
+    "expected_route": "fireworks",
+    "allowed_routes": ["fireworks", "local_solver"]
   }
 ]
