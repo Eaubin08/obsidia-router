@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from app.gates.gates import evaluate as evaluate_gates
 from app.ir.unified_ir import build_ir
+from app.router.local_solvers import try_local_solvers
 from app.router.semantic_topics import route_topic
 
 # Fireworks serverless model ladder, cheapest first (verified against the
@@ -76,6 +77,16 @@ def decide(raw: str, memory_index: dict | None = None,
     if gate["verdict"] == "HOLD":
         decision.update(route="hold_commands_only", reason=gate["reason"])
         return decision
+    # --- Level 1.5: local category solvers — deterministic, 0 token ----------
+    # Only fires on unambiguous patterns (sentiment, simple math). The frame
+    # (DENY/HOLD) has already been enforced above.
+    solver_hit = try_local_solvers(raw)
+    if solver_hit:
+        decision.update(level=1, route="local_solver",
+                        reason=f"category closed locally ({solver_hit['solver']}), no inference")
+        decision["solver_answer"] = solver_hit["answer"]
+        return decision
+
     if gate["verdict"] == "CLARIFY":
         # A canonical topic covered by the corpus resolves the ambiguity
         # without inference; otherwise clarification is cheaper than a model.

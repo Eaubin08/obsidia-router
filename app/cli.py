@@ -65,6 +65,8 @@ def run_one(raw: str, metrics: MetricsCollector, memory_index: dict,
             decision["actual_model_used"] = decision["model"]
             result = fireworks.chat(decision["model"], raw)
         output_text = result["text"]
+    elif decision["route"] == "local_solver":
+        output_text = decision["solver_answer"]
     elif decision["route"] == "brody":
         output_text = brody_stub.answer(decision["ir"], decision["topic"])["text"]
     elif decision["route"] == "memory_hit":

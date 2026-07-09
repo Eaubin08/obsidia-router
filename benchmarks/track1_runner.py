@@ -83,6 +83,10 @@ def track1_answer(row: dict) -> str:
             return memory
         return output or "Memory: no entry found."
 
+    if route == "local_solver":
+        # Reponse deterministe locale (sentiment/math) : la valeur elle-meme.
+        return output or "Local solver produced no answer."
+
     if route == "brody":
         # Si l'output est du texte brody-stub interne, on le remplace par un message propre
         if output and not output.startswith("[brody-stub]"):
