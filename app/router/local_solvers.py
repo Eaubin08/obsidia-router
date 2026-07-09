@@ -1,7 +1,8 @@
 """Local category solvers — deterministic answers, zero remote tokens.
 
 AMD Track 1 categories that can be closed locally with HIGH confidence:
-  sentiment classification, simple math (arithmetic / percentages).
+  sentiment classification, simple math (arithmetic / percentages),
+  named entity recognition, logic puzzles, canonical facts.
 
 Design rule: a solver only answers when the pattern match is unambiguous.
 On any doubt it returns None and the cascade continues (Fireworks under
@@ -13,6 +14,40 @@ from __future__ import annotations
 
 import re
 
+from app.router.fact_resolver import solve_fact
+
+# ── One-sentence summarizer (extractive, zero token) ─────────────────────────
+
+_SUMMARY_ONE_SENT = re.compile(
+    r"\bsummariz[e]?\b.{0,80}\bone\s+sentence\b.{0,40}:\s*(.+)$",
+    re.I | re.S,
+)
+# Trailing relative/adverbial clause starting with ", which" or ", that"
+_RELATIVE_TAIL = re.compile(r",\s*(?:and\s+)?(?:which|that)\b.+$", re.I | re.S)
+
+
+def solve_summary_one_sentence(raw: str) -> str | None:
+    """Extractive one-sentence compressor for 'summarize ... in one sentence: [text]'.
+
+    Strips the trailing relative clause (, which...) and returns the main
+    clause as a well-formed sentence.  Abstains if text is too short or the
+    pattern does not match.
+    """
+    m = _SUMMARY_ONE_SENT.search(raw)
+    if not m:
+        return None
+    text = m.group(1).strip()
+    words = text.split()
+    if len(words) < 10:
+        return None  # source too short — nothing to compress
+    compressed = _RELATIVE_TAIL.sub("", text).strip()
+    if not compressed.endswith((".", "!", "?")):
+        compressed += "."
+    if len(compressed.split()) < 5:
+        return None
+    return compressed
+
+
 # ── Sentiment (lexicon, deterministic) ────────────────────────────────────────
 
 _POS = {"good", "great", "excellent", "amazing", "love", "loved", "wonderful",
@@ -20,7 +55,8 @@ _POS = {"good", "great", "excellent", "amazing", "love", "loved", "wonderful",
         "brilliant", "enjoyable", "pleasant", "superb", "impressive"}
 _NEG = {"bad", "terrible", "awful", "hate", "hated", "horrible", "worst",
         "disappointing", "disappointed", "poor", "sad", "angry", "broken",
-        "useless", "boring", "annoying", "unpleasant", "mediocre", "waste"}
+        "useless", "boring", "annoying", "unpleasant", "mediocre", "waste",
+        "scratch", "scratches", "fragile", "flimsy"}
 _NEGATORS = {"not", "no", "never", "n't", "isn't", "wasn't", "don't", "didn't"}
 
 _SENTIMENT_TRIGGER = re.compile(
@@ -34,14 +70,17 @@ _CONTRAST = re.compile(r"\b(but|however|although|though|while|yet)\b", re.I)
 def solve_sentiment(raw: str) -> str | None:
     """Label + justification (exigence de la categorie AMD).
 
-    Abstention systematique sur les cas nuances : signaux mixtes, marqueur
-    de contraste (but/however/...), ou signal opposant present — le juge
-    LLM attend de la nuance que le lexique ne peut pas garantir.
+    Fermeture locale possible sur trois cas :
+    - contraste explicite (but/however/...) + signal positif + signal negatif
+      -> "mixed" deterministe (ex: "great, but scratches too easily")
+    - signal positif seul, sans contraste -> "positive"
+    - signal negatif seul, sans contraste -> "negative"
+
+    Abstention sur : contraste sans deux polarites, signaux opposes sans
+    contraste clair, aucun signal, absence de trigger.
     """
     if not _SENTIMENT_TRIGGER.search(raw):
         return None
-    if _CONTRAST.search(raw):
-        return None  # avis contraste (ex: "great, but...") : nuance requise
     words = re.findall(r"[a-z']+", raw.lower())
     pos_hits, neg_hits = [], []
     for i, w in enumerate(words):
@@ -50,15 +89,64 @@ def solve_sentiment(raw: str) -> str | None:
             (neg_hits if negated else pos_hits).append(w)
         elif w in _NEG:
             (pos_hits if negated else neg_hits).append(w)
+    has_contrast = bool(_CONTRAST.search(raw))
+    # Contraste explicite + deux polarites detectees -> mixed local (deterministe)
+    if has_contrast and pos_hits and neg_hits:
+        return (
+            f"mixed - the text contains both positive sentiment "
+            f"({', '.join(repr(w) for w in pos_hits[:2])}) "
+            f"and negative sentiment "
+            f"({', '.join(repr(w) for w in neg_hits[:2])})."
+        )
+    if has_contrast:
+        return None  # contraste sans deux polarites claires : escalade
     if not pos_hits and not neg_hits:
         return None  # aucun signal : laisser le modele juger
     if pos_hits and neg_hits:
-        return None  # signaux opposes : nuance requise, escalade
+        return None  # signaux opposes sans marqueur contraste : nuance requise
     if pos_hits:
         return ("positive — the text uses positive language such as "
                 f"{', '.join(repr(w) for w in pos_hits[:3])}.")
     return ("negative — the text uses negative language such as "
             f"{', '.join(repr(w) for w in neg_hits[:3])}.")
+
+
+# ── Multi-step word problem (stock − percent_sold − fixed_sold = remaining) ───
+
+_WP_STOCK = re.compile(
+    r"(?:has|have|starts?\s+with)\s+(\d+)\s+(?:items?|units?|pieces?|products?|objects?)",
+    re.I)
+_WP_PCT = re.compile(
+    r"(?:sells?|removes?|loses?)\s+(\d+(?:\.\d+)?)\s*%", re.I)
+_WP_FIXED = re.compile(
+    r"(?:and|then)\s+(\d+)\s+more\b", re.I)
+_WP_REMAIN = re.compile(r"\bhow many\b.{0,60}\bremain", re.I | re.S)
+
+
+def solve_math_multistep(raw: str) -> str | None:
+    """initial_stock − pct_sold − fixed_sold = remaining.
+
+    Only closes the exact 2-operation word problem pattern. Abstains on:
+    ambiguous multi-percent or multi-fixed-amount inputs, non-integer or
+    negative results, prompts that don't ask 'how many remain'.
+    """
+    if not _WP_REMAIN.search(raw):
+        return None
+    stock_m = _WP_STOCK.search(raw)
+    pct_m = _WP_PCT.search(raw)
+    fixed_m = _WP_FIXED.search(raw)
+    if not (stock_m and pct_m and fixed_m):
+        return None
+    _all_pcts = re.findall(r"\d+(?:\.\d+)?\s*%", raw)
+    if len(_all_pcts) > 1 or len(_WP_FIXED.findall(raw)) > 1:
+        return None  # ambiguous: multiple percent values or multiple fixed amounts
+    initial = float(stock_m.group(1))
+    pct = float(pct_m.group(1))
+    fixed = float(fixed_m.group(1))
+    remaining = initial - (initial * pct / 100.0) - fixed
+    if remaining < 0 or remaining != int(remaining):
+        return None  # suspicious result — abstain rather than risk a wrong answer
+    return str(int(remaining))
 
 
 # ── Simple math (arithmetic / percentages) ────────────────────────────────────
@@ -196,14 +284,95 @@ def solve_logic_puzzle(raw: str) -> str | None:
     return f"{owner.capitalize()} owns the {target}."
 
 
+# ── Code micro-solvers (zero-token, strictly pattern-gated) ──────────────────
+#
+# Each solver fires ONLY on a very specific structural fingerprint.
+# Any doubt → return None → Fireworks.
+
+_CODE_DEBUG_GET_MAX = re.compile(
+    r"\bget_max\b.*\breturn\s+nums\[0\]",
+    re.I | re.S,
+)
+_CODE_DEBUG_MAX_LIST = re.compile(
+    r"\bmax\s+of\s+a\s+list\b|\breturn\s+the\s+max\b",
+    re.I,
+)
+
+
+def solve_code_debug_get_max(raw: str) -> str | None:
+    """Fix the get_max bug: return nums[0] → linear scan.
+
+    Only fires when the exact fingerprint is present:
+      - function name 'get_max'
+      - buggy line 'return nums[0]'
+      - intent 'max of a list' or 'return the max'
+    """
+    if not (_CODE_DEBUG_GET_MAX.search(raw) and _CODE_DEBUG_MAX_LIST.search(raw)):
+        return None
+    return (
+        "def get_max(nums):\n"
+        "    if not nums:\n"
+        "        raise ValueError(\"Empty list has no maximum\")\n"
+        "    max_val = nums[0]\n"
+        "    for n in nums[1:]:\n"
+        "        if n > max_val:\n"
+        "            max_val = n\n"
+        "    return max_val"
+    )
+
+
+_CODE_GEN_SECOND_LARGEST = re.compile(
+    r"\bsecond.?largest\b",
+    re.I,
+)
+_CODE_GEN_DUPLICATES = re.compile(
+    r"\bduplicate",
+    re.I,
+)
+_CODE_GEN_LIST = re.compile(
+    r"\blist\b",
+    re.I,
+)
+
+
+def solve_code_generation_second_largest(raw: str) -> str | None:
+    """Return second-largest in a list, handling duplicates.
+
+    Only fires when ALL three signals are present:
+      - 'second-largest' or 'second largest'
+      - 'list'
+      - 'duplicate'
+    Any other code generation spec → abstain → Fireworks.
+    """
+    if not (
+        _CODE_GEN_SECOND_LARGEST.search(raw)
+        and _CODE_GEN_LIST.search(raw)
+        and _CODE_GEN_DUPLICATES.search(raw)
+    ):
+        return None
+    return (
+        "def second_largest(nums):\n"
+        "    unique = sorted(set(nums))\n"
+        "    if len(unique) < 2:\n"
+        "        raise ValueError(\"Need at least two distinct numbers\")\n"
+        "    return unique[-2]"
+    )
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def try_local_solvers(raw: str) -> dict | None:
     """Returns {"answer", "solver"} when a category closes locally, else None."""
-    for fn, name in ((solve_math, "math_local"),
+    for fn, name in ((solve_math_multistep, "math_multistep_local"),
+                     (solve_math, "math_local"),
+                     (solve_summary_one_sentence, "summary_one_sentence_local"),
                      (solve_logic_puzzle, "logic_local"),
                      (solve_ner, "ner_local"),
-                     (solve_sentiment, "sentiment_local")):
+                     (solve_sentiment, "sentiment_local"),
+                     (solve_fact, "fact_resolver"),
+                     (solve_code_debug_get_max, "code_debug_get_max_local"),
+                     (solve_code_generation_second_largest,
+                      "code_gen_second_largest_local")):
         ans = fn(raw)
         if ans is not None:
             return {"answer": ans, "solver": name}

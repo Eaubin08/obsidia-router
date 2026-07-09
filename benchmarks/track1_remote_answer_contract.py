@@ -196,13 +196,13 @@ def build_contract_prompt(
         "Go straight to the answer. "
     )
     if code_only:
+        # Compact prompt: avoids re-stating base instructions already implied
+        # by the code-only contract. Every word costs tokens.
         return (
-            base
-            + "Return only valid code. "
-            "No explanation before or after the code. "
-            "No markdown code fences unless the request explicitly asks for them. "
-            f"{lang_instr} "
-            "Avoid tables unless explicitly requested."
+            "Return only valid Python code. No prose. No reasoning. No markdown. "
+            "Start your response with `def`. "
+            "Implement the function completely and correctly. "
+            f"{lang_instr}"
         )
     shape_instr = ""
     if answer_kind in ("comparison", "structured_summary", "direct_answer"):
