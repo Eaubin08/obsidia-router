@@ -1177,6 +1177,11 @@ def main() -> int:
         decision = run_one(task["request"], metrics, memory_index,
                            track1_profile=_t1_profile)
 
+        # La route DECIDEE (pre-escalade) est la reference pour route_accuracy :
+        # escalader un brody stub vers fireworks est une decision d'execution,
+        # pas une erreur de routage.
+        routed_as = decision["route"]
+
         # Mode officiel : Brody est stubbe dans le cut public. Un placeholder
         # scorerait 0 en answer accuracy — on escalade vers le modele le moins
         # cher sous le meme contrat borne (budget + English). Si Brody live
@@ -1197,7 +1202,7 @@ def main() -> int:
                 metrics.records[-1]["remote_call_avoided"] = False
         routing_latency = round(time.perf_counter() - t0, 4)
 
-        ok = decision["route"] == task.get("expected_route", decision["route"])
+        ok = routed_as == task.get("expected_route", routed_as)
         correct += ok
         baseline_calls += 1
 
