@@ -28,24 +28,37 @@ _SENTIMENT_TRIGGER = re.compile(
     r"\b(positive|negative|neutral)\b.*\bsentiment\b", re.I)
 
 
+_CONTRAST = re.compile(r"\b(but|however|although|though|while|yet)\b", re.I)
+
+
 def solve_sentiment(raw: str) -> str | None:
+    """Label + justification (exigence de la categorie AMD).
+
+    Abstention systematique sur les cas nuances : signaux mixtes, marqueur
+    de contraste (but/however/...), ou signal opposant present — le juge
+    LLM attend de la nuance que le lexique ne peut pas garantir.
+    """
     if not _SENTIMENT_TRIGGER.search(raw):
         return None
+    if _CONTRAST.search(raw):
+        return None  # avis contraste (ex: "great, but...") : nuance requise
     words = re.findall(r"[a-z']+", raw.lower())
-    pos = neg = 0
+    pos_hits, neg_hits = [], []
     for i, w in enumerate(words):
         negated = i > 0 and words[i - 1] in _NEGATORS
         if w in _POS:
-            pos, neg = (pos, neg + 1) if negated else (pos + 1, neg)
+            (neg_hits if negated else pos_hits).append(w)
         elif w in _NEG:
-            pos, neg = (pos + 1, neg) if negated else (pos, neg + 1)
-    if pos == neg == 0:
+            (pos_hits if negated else neg_hits).append(w)
+    if not pos_hits and not neg_hits:
         return None  # aucun signal : laisser le modele juger
-    if pos > neg:
-        return "positive"
-    if neg > pos:
-        return "negative"
-    return "neutral"
+    if pos_hits and neg_hits:
+        return None  # signaux opposes : nuance requise, escalade
+    if pos_hits:
+        return ("positive — the text uses positive language such as "
+                f"{', '.join(repr(w) for w in pos_hits[:3])}.")
+    return ("negative — the text uses negative language such as "
+            f"{', '.join(repr(w) for w in neg_hits[:3])}.")
 
 
 # ── Simple math (arithmetic / percentages) ────────────────────────────────────

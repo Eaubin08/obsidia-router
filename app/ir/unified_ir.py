@@ -44,12 +44,14 @@ _AUDIT_WORDS = {
 }
 _QUESTION_WORDS = {
     "explique", "explain", "pourquoi", "why", "comment", "how", "quoi",
-    "what", "contexte", "context", "resume", "summarize", "definis", "define",
+    "what", "contexte", "context", "resume", "summarize", "summarise",
+    "definis", "define", "who", "which", "whose", "qui",
 }
 _REASONING_WORDS = {
     "prouve", "prove", "demontre", "raisonne", "analyse", "analyze",
     "compare", "optimise", "optimize", "derive", "calcule", "compute",
     "traduis", "translate", "genere", "generate", "redige", "draft",
+    "extract", "extrait", "identify", "identifie", "classify", "classe",
 }
 # Words that signal an action on the world (execution, git, deletion...).
 # These NEVER go to a model directly: they hit the gates first.

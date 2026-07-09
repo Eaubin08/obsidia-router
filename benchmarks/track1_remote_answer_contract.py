@@ -158,6 +158,14 @@ def select_max_tokens(answer_kind: str) -> int:
 
 
 def select_model_preference() -> str:
+    """Regle AMD : ne jamais appeler un modele hors ALLOWED_MODELS (publie
+    au launch day, injecte par le harness). Le defaut calibre n'est utilise
+    que s'il figure dans la liste ; sinon premier modele autorise."""
+    import os
+    allowed = [m.strip() for m in os.environ.get("ALLOWED_MODELS", "").split(",")
+               if m.strip()]
+    if allowed:
+        return _DEFAULT_MODEL if _DEFAULT_MODEL in allowed else allowed[0]
     return _DEFAULT_MODEL
 
 

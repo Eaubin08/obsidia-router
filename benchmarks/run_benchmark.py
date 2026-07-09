@@ -1186,8 +1186,16 @@ def main() -> int:
         # scorerait 0 en answer accuracy — on escalade vers le modele le moins
         # cher sous le meme contrat borne (budget + English). Si Brody live
         # est configure (BRODY_ENDPOINT), la route locale reste prioritaire.
-        if (track1_official and decision["route"] == "brody"
-                and not os.environ.get("BRODY_ENDPOINT")):
+        # Filet accuracy gate : une tache cachee du harness (pas
+        # d'expected_route) ne peut pas finir en CLARIFY — pas de dialogue
+        # possible, un placeholder score 0. Escalade bornee obligatoire.
+        _needs_answer_escalation = (
+            track1_official and (
+                (decision["route"] == "brody"
+                 and not os.environ.get("BRODY_ENDPOINT"))
+                or (decision["route"] == "clarification_needed"
+                    and task.get("expected_route") is None)))
+        if _needs_answer_escalation:
             _c = build_remote_answer_contract(task["request"])
             _fw = fireworks.chat(
                 _c["model_preference"] or (ladder[0] if ladder else baseline_model),

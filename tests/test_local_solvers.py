@@ -25,16 +25,21 @@ def test_math_refuses_ambiguous():
 # ── Sentiment ─────────────────────────────────────────────────────────────────
 
 def test_sentiment_positive():
-    assert solve_sentiment(
-        "Classify the sentiment: 'I loved this movie, it was excellent'") == "positive"
+    a = solve_sentiment("Classify the sentiment: 'I loved this movie, it was excellent'")
+    assert a and a.startswith("positive")
 
 def test_sentiment_negative():
-    assert solve_sentiment(
-        "What is the sentiment of: 'terrible service, worst experience'") == "negative"
+    a = solve_sentiment("What is the sentiment of: 'terrible service, worst experience'")
+    assert a and a.startswith("negative")
 
 def test_sentiment_negation():
-    assert solve_sentiment(
-        "Classify the sentiment: 'this is not good at all'") == "negative"
+    a = solve_sentiment("Classify the sentiment: 'this is not good at all'")
+    assert a and a.startswith("negative")
+
+def test_sentiment_abstains_on_mixed():
+    # practice-03 : avis contraste -> nuance requise -> escalade
+    assert solve_sentiment("Classify the sentiment of this review: "
+        "The battery life is great, but the screen scratches too easily.") is None
 
 def test_sentiment_refuses_without_trigger():
     # Pas de mot-cle 'sentiment/classify' : ne pas repondre a l'aveugle.
@@ -55,7 +60,7 @@ def test_decide_routes_math_locally():
 def test_decide_routes_sentiment_locally():
     d = decide("Classify the sentiment: 'an amazing, wonderful film'")
     assert d["route"] == "local_solver"
-    assert d["solver_answer"] == "positive"
+    assert d["solver_answer"].startswith("positive")
 
 def test_frame_still_wins_over_solver():
     # Une action monde reste HOLD meme si elle contient un pattern math.
