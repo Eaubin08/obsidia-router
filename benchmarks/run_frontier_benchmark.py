@@ -320,6 +320,74 @@ def frontier_analysis(results_by_mode: dict[str, list], tasks: list[dict]) -> di
     }
 
 
+# ── Zone classification ───────────────────────────────────────────────────────
+
+def classify_zone_and_reason(
+    task: dict,
+    obsidia: dict,
+    local: dict,
+) -> tuple[str, str]:
+    """Return (zone, reason) for the Boundary Map.
+
+    Zones:
+      SOLO_SAFE          — local solver / gate closes at 0 token, no model needed
+      GOVERNED_NEVER_MODEL — gate fires (HOLD/DENY/CLARIFY) on action/risk
+      FRONTIER_ABSTAIN   — local abstains, Obsidia routes to Brody/Clarify (not Fireworks)
+      FIREWORKS_USEFUL   — local abstains, Obsidia escalates to Fireworks; open-world task
+
+    Reasons:
+      closed_by_solver, closed_by_gate, missing_fingerprint,
+      open_world_reasoning, action_risk, ambiguity,
+      unknown_entity, code_not_covered
+    """
+    o_route  = obsidia["route"]
+    l_route  = local["route"]
+    family   = task.get("family", "")
+    notes    = task.get("notes", "")
+    action   = task.get("action_risk", False)
+    open_w   = task.get("open_world", False)
+    lvl      = task.get("complexity_level", 0)
+
+    # 1. GOVERNED_NEVER_MODEL — gate fires on world actions
+    if o_route in ("hold_commands_only", "denied"):
+        return ("GOVERNED_NEVER_MODEL", "action_risk")
+    if o_route == "clarification_needed" and action:
+        return ("GOVERNED_NEVER_MODEL", "ambiguity")
+
+    # 2. SOLO_SAFE — closed by local solver
+    if o_route == "local_solver":
+        return ("SOLO_SAFE", "closed_by_solver")
+    if o_route in ("no_model_needed", "memory_hit"):
+        return ("SOLO_SAFE", "closed_by_gate")
+
+    # 3. Determine reason for non-local routes
+    if "unknown" in notes.lower() or "unknown_entity" in notes.lower():
+        reason = "unknown_entity"
+    elif "code" in notes.lower() and ("different" in notes.lower() or "spec" in notes.lower() or "covered" in notes.lower()):
+        reason = "code_not_covered"
+    elif "missing" in notes.lower() or family == "near_boundary":
+        reason = "missing_fingerprint"
+    elif open_w and lvl >= 4:
+        reason = "open_world_reasoning"
+    elif o_route == "clarification_needed":
+        reason = "ambiguity"
+    elif family == "noisy_dirty":
+        reason = "ambiguity"
+    else:
+        reason = "open_world_reasoning"
+
+    # 4. FRONTIER_ABSTAIN — local abstains, Obsidia routes to Brody/Clarify (not Fireworks)
+    if o_route in ("brody", "clarification_needed") and l_route == "abstain":
+        return ("FRONTIER_ABSTAIN", reason)
+
+    # 5. FIREWORKS_USEFUL — Obsidia escalates to Fireworks
+    if o_route == "fireworks":
+        return ("FIREWORKS_USEFUL", reason)
+
+    # Fallback
+    return ("FRONTIER_ABSTAIN", reason)
+
+
 # ── Report writers ────────────────────────────────────────────────────────────
 
 def write_json_report(data: dict, path: Path) -> None:
@@ -328,9 +396,17 @@ def write_json_report(data: dict, path: Path) -> None:
 
 
 def write_md_report(report: dict, path: Path) -> None:
-    fa = report["frontier_analysis"]
+    fa      = report["frontier_analysis"]
     summary = report["family_summary"]
-    meta = report["meta"]
+    meta    = report["meta"]
+    results = report["task_results"]
+
+    zones: dict[str, list[dict]] = {
+        "SOLO_SAFE": [], "GOVERNED_NEVER_MODEL": [],
+        "FRONTIER_ABSTAIN": [], "FIREWORKS_USEFUL": [],
+    }
+    for r in results:
+        zones[r["zone"]].append(r)
 
     lines = [
         "# Frontier Benchmark Report",
@@ -339,18 +415,103 @@ def write_md_report(report: dict, path: Path) -> None:
         f"API key: `{meta['api_key_present']}`  |  "
         f"fireworks_direct_live: `{meta['fireworks_direct_live']}`",
         "",
+    ]
+
+    # ── Boundary Map ──────────────────────────────────────────────────────────
+    lines += [
+        "## Boundary Map -- where Obsidia goes solo vs where Fireworks is useful",
+        "",
+        "| id | family | complexity | obsidia_route | local_route | zone | reason |",
+        "|----|--------|-----------|--------------|------------|------|--------|",
+    ]
+    for r in results:
+        o_route = r["obsidia"]["route"]
+        l_route = r["local_only"]["route"]
+        lines.append(
+            f"| {r['task_id']} | {r['family']} | {r['complexity_level']}"
+            f" | {o_route} | {l_route} | **{r['zone']}** | {r['reason']} |"
+        )
+
+    lines += ["", "---", ""]
+
+    # SOLO_SAFE
+    ss = zones["SOLO_SAFE"]
+    ss_families = sorted({r["family"] for r in ss})
+    ss_latencies = [r["obsidia"]["latency_ms"] for r in ss]
+    ss_tokens_saved = sum(r["fireworks_direct"]["tokens"] for r in ss)
+    avg_ss_lat = round(mean(ss_latencies), 2) if ss_latencies else 0
+    lines += [
+        "### SOLO_SAFE",
+        f"- **Count**: {len(ss)} tasks",
+        f"- **Families**: {', '.join(ss_families)}",
+        f"- **Avg Obsidia latency**: {avg_ss_lat} ms",
+        f"- **Tokens saved vs Fireworks direct**: ~{ss_tokens_saved} (estimated)",
+        "- **Why**: Exact fingerprint or deterministic gate -- no model, 0 tokens.",
+        "",
+    ]
+
+    # GOVERNED_NEVER_MODEL
+    gv = zones["GOVERNED_NEVER_MODEL"]
+    lines += [
+        "### GOVERNED_NEVER_MODEL",
+        f"- **Count**: {len(gv)} tasks",
+        f"- **Tasks**: {', '.join(r['task_id'] for r in gv)}",
+        "- **Why Fireworks must never be called**: world-action or destructive risk "
+        "(push, rm-rf, deploy, bypass). Calling a model violates the governance "
+        "invariant no_auto_act/no_auto_commit/no_auto_push. "
+        "Gates intercept at level 0, 0 tokens.",
+        "",
+    ]
+
+    # FRONTIER_ABSTAIN
+    fa_zone = zones["FRONTIER_ABSTAIN"]
+    fa_examples = [r["task_id"] for r in fa_zone[:4]]
+    lines += [
+        "### FRONTIER_ABSTAIN",
+        f"- **Count**: {len(fa_zone)} tasks",
+        f"- **Examples**: {', '.join(fa_examples)}",
+        "- **Why local is right to stop**:",
+        "  - Missing signal: micro-solver fingerprint incomplete "
+        "(token bucket without limiter.py, CAP without resume).",
+        "  - Unknown entity: NER/factual outside canonical knowledge base.",
+        "  - Ambiguity: contradictory or too-short prompt for deterministic answer.",
+        "  - Obsidia routes to Brody or Clarification (not Fireworks): 0 tokens, governed.",
+        "",
+    ]
+
+    # FIREWORKS_USEFUL
+    fw_zone = zones["FIREWORKS_USEFUL"]
+    fw_complexities = [r["complexity_level"] for r in fw_zone]
+    fw_tokens = [r["fireworks_direct"]["tokens"] for r in fw_zone
+                 if r["fireworks_direct"]["tokens"] > 0]
+    avg_fw_tok = round(mean(fw_tokens), 0) if fw_tokens else "n/a (dry-run)"
+    avg_fw_cplx = round(mean(fw_complexities), 1) if fw_complexities else "n/a"
+    lines += [
+        "### FIREWORKS_USEFUL",
+        f"- **Count**: {len(fw_zone)} tasks",
+        f"- **Avg complexity level**: {avg_fw_cplx}",
+        f"- **Avg Fireworks tokens (estimated)**: {avg_fw_tok}",
+        "- **Why Fireworks is useful**:",
+        "  - Open-world reasoning: unknown architectures, new technical plans.",
+        "  - Code not covered by micro-solver: BST, LRU, different specs.",
+        "  - Unknown entity/country: open-world knowledge impossible to close locally.",
+        "  - Noisy prompts without recognizable pattern.",
+        "  - Frontier: complexity >= 4 or open_world=true.",
+        "",
+    ]
+
+    # Complexity table
+    lines += [
+        "---",
+        "",
         "## Frontier Analysis",
         "",
-        f"- **Local wins** ({len(fa['local_wins'])} tasks): "
-        + (", ".join(fa["local_wins"]) or "none"),
-        f"- **Fireworks wins** ({len(fa['fireworks_wins'])} tasks): "
-        + (", ".join(fa["fireworks_wins"]) or "none"),
-        f"- **Governed** ({len(fa['governed_tasks'])} tasks): "
-        + (", ".join(fa["governed_tasks"]) or "none"),
-        f"- **Correct abstentions** (local_only): {len(fa['correct_abstentions'])} tasks",
+        f"- **Local wins**: {len(fa['local_wins'])} tasks",
+        f"- **Fireworks wins (via obsidia router)**: {len(fa['fireworks_wins'])} tasks",
+        f"- **Governed**: {len(fa['governed_tasks'])} tasks",
+        f"- **Correct abstentions (local_only)**: {len(fa['correct_abstentions'])} tasks",
         f"- **False local closures**: {fa['false_local_closures']}",
-        f"- **Break-even complexity level**: {fa['break_even_complexity_level']} "
-        "(first level where Fireworks > local)",
+        f"- **Break-even complexity level**: {fa['break_even_complexity_level']}",
         "",
         "### By Complexity Level",
         "",
@@ -363,52 +524,47 @@ def write_md_report(report: dict, path: Path) -> None:
             f"{d['fireworks_needed']} | {d['governed']} |"
         )
 
-    lines += [
-        "",
-        "## Questions answered",
-        "",
-        "1. **Local gagne** : closed_exact, closed_variants, governed (gates), noisy math/jailbreak",
-        "2. **Fireworks gagne** : open_reasoning (complexity ≥ 4), near_boundary abstentions, typo + unknown entity",
-        "3. **Local doit abstain** : near_boundary (signal manquant) — vérifié ci-dessus",
-        "4. **Fireworks jamais appelé** : governed_actions (HOLD/DENY/CLARIFY) — gates gagnent toujours",
-        f"5. **Break-even complexity level** : {fa['break_even_complexity_level']}",
-        "",
-        "## Family Summary",
-        "",
-    ]
-
+    # Family summary
+    lines += ["", "## Family Summary", ""]
     for fam, row in summary.items():
         lines.append(f"### {fam} (n={row['n_tasks']})")
         lines.append("")
-        lines.append("| Mode | Avg tokens | Avg latency ms | Safe rate | Abstained | Accuracy proxy |")
-        lines.append("|------|-----------|----------------|-----------|-----------|----------------|")
+        lines.append("| Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |")
+        lines.append("|------|-----------|----------------|-----------|-----------|")
         for mode in ("obsidia_router", "fireworks_direct", "local_only"):
             if mode in row:
                 m = row[mode]
                 lines.append(
                     f"| {mode} | {m['avg_tokens']} | {m['avg_latency_ms']} | "
-                    f"{m['safe_rate']} | {m['abstained']} | {m['accuracy_proxy_rate']} |"
+                    f"{m['safe_rate']} | {m['abstained']} |"
                 )
         lines.append("")
 
+    # Token economics + final boundary statement
     lines += [
         "## Token Economics",
         "",
-        f"- Avg Obsidia routing cost (local, no API): ~0.1 ms, 0 tokens",
-        f"- Avg Fireworks dry-run estimate: {meta.get('avg_fw_estimate_tokens', 'n/a')} tokens",
+        "- Avg Obsidia routing cost (local, no API): ~0.1 ms, 0 tokens",
+        f"- Avg Fireworks estimate: {meta.get('avg_fw_estimate_tokens', 'n/a')} tokens",
         f"- FIREWORKS_API_KEY detected: {meta['api_key_present']}  "
         f"|  fireworks_direct_live: {meta['fireworks_direct_live']}  "
-        f"|  real Fireworks latency: {'measured' if meta['fireworks_direct_live'] else 'NOT measured (add --live + FIREWORKS_API_KEY)'}",
+        f"|  real latency: "
+        + ("measured" if meta["fireworks_direct_live"]
+           else "NOT measured (add --live + FIREWORKS_API_KEY)"),
         "",
         "## Risks",
         "",
-        "- False local closure rate: "
-        + str(fa['false_local_closures'])
-        + " (micro-solvers with wrong signal match — verify near_boundary family)",
-        "- Typo prompts: local solver may not close, escalation to Fireworks is safe fallback",
+        f"- False local closure rate: {fa['false_local_closures']} "
+        "(0 = no micro-solver answered outside its fingerprint)",
+        "- Typo prompts: local solver may not close; Fireworks fallback is safe",
         "- Open-world tasks (open_world=true): only Fireworks can answer correctly",
         "",
-        "_Generated by run_frontier_benchmark.py — read-only, no commit, no push_",
+        "> **Current boundary**: Obsidia should go solo for closed deterministic tasks "
+        "and exact solver fingerprints; abstain at near-boundary prompts; "
+        "escalate to Fireworks for open-world tasks at complexity >= 4; "
+        "and never call Fireworks directly for governed actions.",
+        "",
+        "_Generated by run_frontier_benchmark.py -- read-only, no commit, no push_",
     ]
 
     with open(path, "w", encoding="utf-8") as f:
@@ -465,7 +621,17 @@ def main() -> None:
             f"obsidia={route_o:<18} local={route_l:<14} "
             f"tok={tok_o:<5} {kw_ok}"
         )
-        all_flat.append({"task_id": task["id"], "obsidia": ro, "fireworks_direct": rfd, "local_only": rl})
+        zone, reason = classify_zone_and_reason(task, ro, rl)
+        all_flat.append({
+            "task_id": task["id"],
+            "family": task["family"],
+            "complexity_level": task.get("complexity_level", 0),
+            "zone": zone,
+            "reason": reason,
+            "obsidia": ro,
+            "fireworks_direct": rfd,
+            "local_only": rl,
+        })
 
     summary = aggregate(
         [r for group in zip(
