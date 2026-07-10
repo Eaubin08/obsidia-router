@@ -62,14 +62,14 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
         return {
             "dry_run": True,
             "model": model,
-            "text": "[dry-run] no FIREWORKS_API_KEY — call not sent",
+            "text": "[dry-run] no FIREWORKS_API_KEY - call not sent",
             "prompt_tokens": estimate_tokens(prompt) - 300,
             "completion_tokens": 0,
             "total_tokens": estimate_tokens(prompt) - 300,
             "latency_s": 0.0,
         }
 
-    base = os.environ.get("FIREWORKS_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+    base = (os.environ.get("FIREWORKS_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -126,7 +126,7 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
             "dry_run": False,
             "error": f"network: {exc}",
             "model": model,
-            "text": "[error] Fireworks unreachable — network error.",
+            "text": "[error] Fireworks unreachable - network error.",
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,

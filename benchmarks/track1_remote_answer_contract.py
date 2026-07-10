@@ -1,7 +1,7 @@
-"""Track 1 remote answer contract — generic pre-generation cadrage layer.
+"""Track 1 remote answer contract — balanced_compact_v3 (aggressive).
 
 Builds a `remote_answer_contract` dict BEFORE any Fireworks call.
-Drives max_tokens, system prompt, and model selection from request signals
+Drives max_tokens, contract prompt, and model selection from request signals
 only — never from task_id as decision logic.
 
 Zero private imports. No dependency on Brody/Obsidure/x108.
@@ -24,29 +24,30 @@ _EXCLUDED_MODELS: dict[str, str] = {
     "accounts/fireworks/models/gemma": "unavailable in current Fireworks catalog",
 }
 
-# ── Budget table (human_margin_high_v0) ───────────────────────────────────────
+# ── Budget table (balanced_compact_v3 — aggressive) ─────────────────────────
 #
-# quality_discovery_v1 natural completion (gpt-oss-120b):
-#   comparison : 561 tokens  → recommend +15% = 646  → final 850
-#   summary    : 611 tokens  → recommend +15% = 703  → final 900
-#   code_file  : 1155 tokens → recommend +15% = 1329 → final 1700
+# quality_discovery_v1 natural completion (gpt-oss-120b, unconstrained):
+#   comparison : 561 tokens  → v3 ceiling: 320
+#   summary    : 611 tokens  → v3 ceiling: 420
+#   code_file  : 1155 tokens → v3 ceiling: 620
 #
-# Boundary / clarification: compact (no Fireworks call in practice)
+# Ultra-short contract prompts (≤120 chars) + low ceiling = minimum total cost.
+# Accuracy boundary: if quality degrades, roll back per kind by +100.
 
 _BUDGETS: dict[str, int] = {
-    "comparison":         600,
-    "structured_summary": 650,
-    "code_file":         1700,
-    "direct_answer":      700,
-    "clarification":      120,
+    "comparison":         320,
+    "structured_summary": 420,
+    "code_file":          620,
+    "direct_answer":      320,
+    "clarification":       80,
 }
 
 _TARGET_WORDS: dict[str, int] = {
-    "comparison":         100,
-    "structured_summary": 120,
-    "code_file":          400,
-    "direct_answer":      100,
-    "clarification":       60,
+    "comparison":          60,
+    "structured_summary":  75,
+    "code_file":          130,
+    "direct_answer":       60,
+    "clarification":       40,
 }
 
 # ── Language detection ────────────────────────────────────────────────────────
@@ -117,12 +118,14 @@ def classify_answer_kind(request: str) -> str:
     low = request.lower()
     if any(sig in low for sig in _CODE_SIGNALS):
         return "code_file"
-    if any(sig in low for sig in _SUMMARY_SIGNALS):
-        return "structured_summary"
+    # COMPARISON checked before SUMMARY so that prompts containing both
+    # "compare" and "trade-offs" are classified as comparison, not summary.
     if any(sig in low for sig in _COMPARISON_SIGNALS):
         return "comparison"
     if any(sig in low for sig in _DERIVATION_SIGNALS):
         return "comparison"
+    if any(sig in low for sig in _SUMMARY_SIGNALS):
+        return "structured_summary"
     return "direct_answer"
 
 
@@ -171,12 +174,8 @@ def select_model_preference() -> str:
 
 # ── Prompt construction ───────────────────────────────────────────────────────
 #
-# Rules derived from quality_discovery_v1 live observations:
-#   - Never use "canonical examples"        → gpt-oss quoted the instruction verbatim
-#   - Never use "The instruction says"      → causes meta-reasoning in body
-#   - Never "The user asks" / "Analyze the Request" / "Understand the Goal"
-#   - No planning, no reasoning chains, no preamble
-#   - code_only: raw code, no explanation, no fences unless requested
+# v3 contract prompts are ≤120 chars — no preamble, no meta-reasoning clauses.
+# code_only: raw code starting with def, no prose, no fences.
 
 def build_contract_prompt(
     answer_kind: str,
@@ -185,44 +184,28 @@ def build_contract_prompt(
     language: str,
     target_words: int,
 ) -> str:
-    # AMD Track 1 rule: every answer must be in English, regardless of the
-    # request language. The detected language stays available as telemetry.
+    # AMD Track 1: answer always in English regardless of request language.
     lang_instr = "Answer in English."
-    base = (
-        "Answer the request directly and concisely. "
-        "Do not start with 'The user asks', 'The user wants', 'Understand the Goal', "
-        "'Analyze the Request', or any description of the request. "
-        "Do not include analysis steps, reasoning chains, planning, or preamble. "
-        "Go straight to the answer. "
-    )
     if code_only:
-        # Compact prompt: avoids re-stating base instructions already implied
-        # by the code-only contract. Every word costs tokens.
         return (
-            "Return only valid Python code. No prose. No reasoning. No markdown. "
-            "Start your response with `def`. "
-            "Implement the function completely and correctly. "
+            "Code only. Start with def. "
+            "No prose, no markdown, no docstring. "
+            "If tests requested, use simple asserts only. No try/except. "
             f"{lang_instr}"
         )
-    shape_instr = ""
-    if answer_kind in ("comparison", "structured_summary", "direct_answer"):
-        shape_instr = (
-            f"Structure the answer in at most 2-3 compact sections. "
-            f"Target {target_words} words total. "
-        )
-    referent_instr = ""
-    if missing_referent:
-        referent_instr = (
-            "If no specific examples are given, use two common well-known instances "
-            "and answer directly without mentioning that examples were missing. "
-        )
-    return (
-        base
-        + shape_instr
-        + referent_instr
-        + f"{lang_instr} "
-        + "Avoid tables unless explicitly requested."
-    )
+    # No word count injected in prompt — "<= N words" causes the model to emit
+    # reasoning steps ("Let's count...", "We need to answer in...").
+    # target_words is kept in the contract metadata only.
+    # Generic molds only: no hidden-task overfit.
+    if answer_kind == "comparison":
+        shape_instr = ("Final only. Plain labels: Option A:, Option B:, Trade-off:. "
+                       "One short sentence per label. "
+                       "No title/table/markdown/preamble/analysis. ")
+    else:
+        shape_instr = ("Final only. Plain text. Keep brief. "
+                       "No title/table/markdown/preamble/analysis. ")
+    referent_instr = "Use two well-known instances if no examples given. " if missing_referent else ""
+    return shape_instr + referent_instr + lang_instr
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────

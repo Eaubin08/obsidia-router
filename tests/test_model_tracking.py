@@ -40,7 +40,7 @@ def test_run_one_stores_actual_model_used_when_profile_given():
 
     profile = {
         "profile": "CODE_FILE",
-        "max_tokens": 1700,
+        "max_tokens": 750,
         "system": "Answer with code only.",
         "model": _GPT_OSS,
     }
@@ -68,7 +68,7 @@ def test_run_one_fallback_to_decision_model_when_contract_not_in_allowed():
     allowed_without_gpt = [_DEEPSEEK, "accounts/fireworks/models/glm-5p1"]
     profile = {
         "profile": "CODE_FILE",
-        "max_tokens": 1700,
+        "max_tokens": 750,
         "system": "Answer with code only.",
         "model": _GPT_OSS,
     }

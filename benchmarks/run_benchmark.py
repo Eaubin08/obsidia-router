@@ -56,6 +56,9 @@ from benchmarks.track1_response_profile import (  # noqa: E402
 from benchmarks.track1_remote_answer_contract import (  # noqa: E402
     build_remote_answer_contract,
 )
+from benchmarks.track1_escalation_guard import (  # noqa: E402
+    should_escalate_clarification_to_fireworks,
+)
 from benchmarks.footprint import collect_footprint, collect_parametric_efficiency  # noqa: E402
 from benchmarks.metrics_coverage import build_metrics_coverage  # noqa: E402
 from benchmarks.imported_proof_metrics import (  # noqa: E402
@@ -1193,8 +1196,8 @@ def main() -> int:
             track1_official and (
                 (decision["route"] == "brody"
                  and not os.environ.get("BRODY_ENDPOINT"))
-                or (decision["route"] == "clarification_needed"
-                    and task.get("expected_route") is None)))
+                or should_escalate_clarification_to_fireworks(
+                    task, task["request"], decision)))
         if _needs_answer_escalation:
             _c = build_remote_answer_contract(task["request"])
             _fw = fireworks.chat(

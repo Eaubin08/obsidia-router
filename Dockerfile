@@ -1,4 +1,4 @@
-# Obsidia Router — semantic routing before inference
+# Obsidia Router -- semantic routing before inference
 # Stdlib-only Python: no pip install needed at build time.
 FROM python:3.12-slim
 
@@ -10,15 +10,11 @@ ENV PYTHONUNBUFFERED=1
 #   docker run -e FIREWORKS_API_KEY=... -v /host/input:/input -v /host/output:/output obsidia-router
 # Optional: FIREWORKS_BASE_URL, ALLOWED_MODELS (comma-separated, cheapest first)
 #
-# Official hackathon mode (default CMD):
+# Official AMD Track 1 mode (default CMD):
 #   reads  /input/tasks.json
-#   writes /output/results.json   (public, harness-clean)
-#   skips  receipts_internal.json (governance audit — not submitted to harness)
+#   writes /output/results.json  [{"task_id","answer"}] only
+#   no benchmark phases, no REPORT.md, no receipts
 #
 # Local dev override:
 #   docker run obsidia-router python benchmarks/run_benchmark.py --stack-v3b
-CMD ["python", "benchmarks/run_benchmark.py", \
-     "--track1-official", \
-     "--tasks-file", "/input/tasks.json", \
-     "--out-dir", "/output", \
-     "--no-receipts"]
+CMD ["python", "scripts/run_official.py"]

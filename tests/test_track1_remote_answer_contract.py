@@ -113,23 +113,23 @@ def test_output_shape_compact_for_comparison():
 # ── select_max_tokens ────────────────────────────────────────────────────────
 
 def test_budget_comparison():
-    assert select_max_tokens("comparison") == 600
+    assert select_max_tokens("comparison") == 320
 
 
 def test_budget_structured_summary():
-    assert select_max_tokens("structured_summary") == 650
+    assert select_max_tokens("structured_summary") == 420
 
 
 def test_budget_code_file():
-    assert select_max_tokens("code_file") == 1700
+    assert select_max_tokens("code_file") == 620
 
 
 def test_budget_direct_answer():
-    assert select_max_tokens("direct_answer") == 700
+    assert select_max_tokens("direct_answer") == 320
 
 
 def test_budget_clarification():
-    assert select_max_tokens("clarification") == 120
+    assert select_max_tokens("clarification") == 80
 
 
 # ── select_model_preference ──────────────────────────────────────────────────
@@ -164,34 +164,29 @@ def test_prompt_no_instruction_says():
 
 
 def test_prompt_no_the_user_asks():
-    # The prompt FORBIDS starting with "The user asks" — it must contain the prohibition.
-    # The prompt itself must start with "Answer", not with that phrase.
-    prompt = build_contract_prompt("direct_answer", False, False, "en", 150)
-    assert prompt.startswith("Answer")
-    assert "Do not start with" in prompt
+    # v3f: prose prompt starts with "Final only"
+    prompt = build_contract_prompt("direct_answer", False, False, "en", 60)
+    assert prompt.startswith("Final only")
+    assert "The user asks" not in prompt
 
 
 def test_prompt_no_analyze_the_request():
-    # The prompt FORBIDS "Analyze the Request" in the model output — it names
-    # the pattern in the prohibition clause. The prompt itself must start with "Answer".
-    prompt = build_contract_prompt("structured_summary", False, False, "fr", 180)
-    assert prompt.startswith("Answer")
-    assert "Analyze the Request" in prompt
+    # v3f: no preamble — starts with "Final only"
+    prompt = build_contract_prompt("structured_summary", False, False, "fr", 75)
+    assert prompt.startswith("Final only")
+    assert "Analyze the Request" not in prompt
 
 
 def test_prompt_code_only_no_explanation():
-    prompt = build_contract_prompt("code_file", False, True, "en", 400)
-    # Compact code prompt: must forbid prose and require code-only output
-    assert "No prose" in prompt or "only valid" in prompt.lower()
-    assert "No reasoning" in prompt or "No prose" in prompt
+    prompt = build_contract_prompt("code_file", False, True, "en", 130)
+    assert "No prose" in prompt or "no prose" in prompt.lower()
+    assert "no docstring" in prompt.lower()
 
 
 def test_prompt_code_no_planning():
-    # Compact code prompt starts directly with "Return" (not "Answer").
-    # It must still contain "def" start instruction and language instruction.
-    prompt = build_contract_prompt("code_file", False, True, "fr", 400)
-    assert "def" in prompt          # "Start your response with `def`"
-    assert "English" in prompt      # AMD Track 1: always answer in English
+    prompt = build_contract_prompt("code_file", False, True, "fr", 130)
+    assert "def" in prompt
+    assert "English" in prompt
 
 
 def test_prompt_fr_contains_french_instruction():
@@ -239,7 +234,7 @@ def test_contract_comparison_full():
         "analyse et compare ces deux strategies de cache distribue et derive la complexite"
     )
     assert c["answer_kind"] == "comparison"
-    assert c["max_tokens"] == 600
+    assert c["max_tokens"] == 320
     assert c["model_preference"] == _DEFAULT_MODEL
     assert c["missing_referent"] is True
     assert "missing_referent_detected" in c["source_signals"]
@@ -250,7 +245,7 @@ def test_contract_structured_summary_full():
         "resume de maniere structuree les tradeoffs consistency availability"
     )
     assert c["answer_kind"] == "structured_summary"
-    assert c["max_tokens"] == 650
+    assert c["max_tokens"] == 420
     assert c["model_preference"] == _DEFAULT_MODEL
 
 
@@ -259,7 +254,7 @@ def test_contract_code_file_full():
         "implemente en python une fonction de rate limiting token bucket avec tests"
     )
     assert c["answer_kind"] == "code_file"
-    assert c["max_tokens"] == 1700
+    assert c["max_tokens"] == 620
     assert c["code_only"] is True
     assert c["output_shape"] == "code_only"
     assert "tests_requested" in c["source_signals"]
@@ -308,4 +303,165 @@ def test_contract_no_task_id_in_decision():
     c1 = build_remote_answer_contract("implemente une fonction python")
     c2 = build_remote_answer_contract("implemente une classe python")
     assert c1["answer_kind"] == c2["answer_kind"] == "code_file"
-    assert c1["max_tokens"] == c2["max_tokens"] == 1700
+    assert c1["max_tokens"] == c2["max_tokens"] == 620
+
+
+# ── balanced_compact_v3 — classification + live prompts ──────────────────────
+
+def test_live_open_reasoning_classified_as_comparison():
+    """Prompt live exact -> comparison (pas structured_summary)."""
+    c = build_remote_answer_contract(
+        "Compare microservices and monolithic architectures for a real-time payment system. "
+        "Give the main trade-offs."
+    )
+    assert c["answer_kind"] == "comparison", (
+        f"Expected 'comparison', got '{c['answer_kind']}'"
+    )
+    assert c["max_tokens"] == 320
+
+
+def test_live_code_open_contract():
+    """Prompt live exact code -> code_file, max_tokens=620, prompt ultra-court."""
+    c = build_remote_answer_contract(
+        "Write a Python function that validates and normalizes an email address, "
+        "with simple tests."
+    )
+    assert c["answer_kind"] == "code_file"
+    assert c["max_tokens"] == 620
+    assert c["code_only"] is True
+    assert len(c["contract_prompt"]) <= 160, (
+        f"contract_prompt trop long: {len(c['contract_prompt'])} chars"
+    )
+
+
+# ── balanced_compact_v3 — contract prompt content ────────────────────────────
+
+def test_code_prompt_no_prose_no_docstring():
+    """Le contract_prompt code contient 'No prose' et 'no docstring'."""
+    p = build_contract_prompt("code_file", False, True, "en", 130)
+    assert "No prose" in p or "no prose" in p.lower()
+    assert "no docstring" in p.lower()
+
+
+def test_code_prompt_simple_asserts_no_try_except():
+    """v3g: contract_prompt code contient 'simple asserts only' et 'No try/except'."""
+    p = build_contract_prompt("code_file", False, True, "en", 130)
+    assert "simple asserts only" in p
+    assert "No try/except" in p
+
+
+def test_code_prompt_no_unittest_main_no_main_guard():
+    """Le contract_prompt code ne contient pas les clauses bannies."""
+    p = build_contract_prompt("code_file", False, True, "en", 130)
+    assert "__main__" not in p
+    assert "unittest.main" not in p
+    assert "standard-library implementation" not in p
+
+
+def test_code_prompt_no_unittest_no_main():
+    """v3g: contract_prompt code ne contient pas 'unittest' ni '__main__'."""
+    p = build_contract_prompt("code_file", False, True, "en", 130)
+    assert "unittest" not in p
+    assert "__main__" not in p
+
+
+def test_code_prompt_length():
+    """Le contract_prompt code doit tenir en <= 160 chars."""
+    p = build_contract_prompt("code_file", False, True, "en", 130)
+    assert len(p) <= 160, f"contract_prompt code trop long: {len(p)} chars"
+
+
+def test_prose_prompt_final_only():
+    """v3f: contract_prompt prose commence par 'Final only'."""
+    for kind in ("comparison", "structured_summary", "direct_answer"):
+        p = build_contract_prompt(kind, False, False, "en", 60)
+        assert p.startswith("Final only"), f"Missing 'Final only' for {kind}: {p!r}"
+
+
+def test_prose_prompt_comparison_generic_labels():
+    """v3g2: comparison utilise des labels génériques Option A/B, pas métier."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "Plain labels" in p
+    assert "Option A:" in p
+    assert "Option B:" in p
+    assert "Trade-off:" in p
+
+
+def test_prose_prompt_no_domain_specific_labels():
+    """v3g2: aucun label métier hardcodé (anti-overfit hidden tasks)."""
+    for kind in ("comparison", "structured_summary", "direct_answer"):
+        p = build_contract_prompt(kind, False, False, "en", 60)
+        assert "Monolith:" not in p
+        assert "Microservices:" not in p
+
+
+def test_prose_prompt_summary_direct_plain_text():
+    """v3g2: structured_summary/direct_answer = moule texte générique sans labels."""
+    for kind in ("structured_summary", "direct_answer"):
+        p = build_contract_prompt(kind, False, False, "en", 60)
+        assert "Plain text" in p
+        assert "Keep brief" in p
+        assert "Option A:" not in p
+        assert "Option B:" not in p
+        assert "Trade-off:" not in p
+
+
+def test_prose_prompt_one_short_sentence():
+    """v3g: contract_prompt prose contient 'One short sentence per label'."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "One short sentence per label" in p
+
+
+def test_prose_prompt_no_title():
+    """v3f: contract_prompt prose contient 'No title'."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "No title" in p or "no title" in p.lower()
+
+
+def test_prose_prompt_no_table_clause():
+    """v3f: contract_prompt prose contient 'table' (interdit)."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "table" in p.lower()
+
+
+def test_prose_prompt_no_markdown_clause():
+    """v3f: contract_prompt prose contient 'markdown' (interdit)."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "markdown" in p.lower()
+
+
+def test_prose_prompt_no_preamble():
+    """v3f: contract_prompt prose contient 'preamble' (interdit)."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "preamble" in p.lower()
+
+
+def test_prose_prompt_no_analysis_clause():
+    """v3f: contract_prompt prose contient 'analysis' (interdit)."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert "analysis" in p.lower()
+
+
+def test_prose_prompt_no_quantitative_triggers():
+    """v3f: contract_prompt prose ne contient aucun déclencheur de comptage."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    for forbidden in ("exactly", "under", "words", "lines", "count", "<="):
+        assert forbidden not in p.lower(), f"Prompt contient déclencheur interdit: {forbidden!r}"
+    # pas de chiffres isolés
+    import re as _re
+    assert not _re.search(r'\b\d+\b', p), f"Prompt contient un chiffre: {p!r}"
+
+
+def test_prose_prompt_ultra_short():
+    """Le contract_prompt prose comparison (sans referent) doit tenir en <= 170 chars."""
+    p = build_contract_prompt("comparison", False, False, "en", 60)
+    assert len(p) <= 170, f"contract_prompt prose trop long: {len(p)} chars"
+
+
+def test_budget_balanced_compact_v3():
+    """Vérification globale des budgets balanced_compact_v3."""
+    assert select_max_tokens("comparison") == 320
+    assert select_max_tokens("structured_summary") == 420
+    assert select_max_tokens("code_file") == 620
+    assert select_max_tokens("direct_answer") == 320
+    assert select_max_tokens("clarification") == 80

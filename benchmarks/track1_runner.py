@@ -62,7 +62,7 @@ def track1_answer(row: dict) -> str:
 
     if route == "no_model_needed":
         if intent == "status":
-            return "System operational. Obsidia Router active — deterministic pre-inference pipeline."
+            return "System operational. Obsidia Router active - deterministic pre-inference pipeline."
         return "Request resolved locally. No remote model required."
 
     if route == "hold_commands_only":

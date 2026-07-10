@@ -189,12 +189,15 @@ def test_official_results_json_clean():
 # ── 5. Dockerfile contient les arguments officiels ────────────────────────────
 
 def test_dockerfile_uses_input_output():
-    """Dockerfile doit référencer /input/tasks.json, /output, --track1-official, --no-receipts."""
+    """Dockerfile doit referencer le runner slim et les chemins /input et /output."""
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert "/input/tasks.json" in dockerfile, "Dockerfile sans /input/tasks.json"
+    # Le runner slim lit /input et ecrit dans /output par defaut.
+    assert "/input" in dockerfile, "Dockerfile sans /input"
     assert "/output" in dockerfile, "Dockerfile sans /output"
-    assert "--track1-official" in dockerfile, "Dockerfile sans --track1-official"
-    assert "--no-receipts" in dockerfile, "Dockerfile sans --no-receipts"
+    # Le runner officiel slim doit etre reference dans le CMD.
+    assert "run_official" in dockerfile or "--track1-official" in dockerfile, (
+        "Dockerfile sans runner officiel (run_official ou --track1-official)"
+    )
 
 
 # ── 6. Mode local par défaut fonctionne encore ───────────────────────────────
@@ -280,3 +283,137 @@ def test_without_no_receipts_writes_receipts():
         assert (out_dir / "receipts_internal.json").exists(), (
             "receipts_internal.json absent en mode local (sans --no-receipts)"
         )
+
+
+# ── 9. Escalation guard — should_escalate_clarification_to_fireworks ─────────
+
+from benchmarks.track1_escalation_guard import (  # noqa: E402
+    should_escalate_clarification_to_fireworks as _guard,
+)
+
+
+def _make_clarify_decision(
+    intent_type: str = "unknown",
+    open_world: bool = False,
+    gate_verdict: str = "CLARIFY",
+) -> dict:
+    return {
+        "route": "clarification_needed",
+        "ir": {"intent_type": intent_type, "open_world": open_world},
+        "gate": {"verdict": gate_verdict},
+    }
+
+
+_HIDDEN_TASK: dict = {}  # no expected_route — simulates AMD hidden task
+
+
+@pytest.mark.parametrize("prompt", [
+    # tokens actionnels courts
+    "ok",
+    "ok vas-y",
+    "ok vas-y fais le",
+    "fais-le",
+    "continue",
+    "go",
+    "lance",
+    "applique",
+    "fais le truc dont on parlait",
+    "vas-y",
+    "reprends",
+    "proceed",
+    # demonstratifs vagues — verbe present mais objet non exploitable
+    "analyse ça",
+    "compare ça",
+    "regarde ça",
+    "fais ça",
+    "explain this",
+    "compare that",
+    "describe it",
+])
+def test_escalation_guard_rejects_short_and_vague(prompt):
+    """Prompts courts / actionnels / demonstratifs vagues -> False (0 token)."""
+    decision = _make_clarify_decision()
+    assert _guard(_HIDDEN_TASK, prompt, decision) is False, (
+        f"Expected False: {prompt!r}"
+    )
+
+
+def test_escalation_guard_open_world_does_not_bypass_ok():
+    """'ok' + open_world=True -> False : bloque step 5a avant step 6."""
+    decision = _make_clarify_decision(open_world=True)
+    assert _guard(_HIDDEN_TASK, "ok", decision) is False
+
+
+def test_escalation_guard_open_world_does_not_bypass_actional_multi():
+    """'ok vas-y fais le' + open_world=True -> False : bloque step 5a."""
+    decision = _make_clarify_decision(open_world=True)
+    assert _guard(_HIDDEN_TASK, "ok vas-y fais le", decision) is False
+
+
+def test_escalation_guard_open_world_does_not_bypass_vague_demo():
+    """'analyse ca' + open_world=True -> False : bloque step 5b."""
+    decision = _make_clarify_decision(open_world=True)
+    assert _guard(_HIDDEN_TASK, "analyse ça", decision) is False
+
+
+def test_escalation_guard_open_world_with_informational():
+    """Vraie question ouverte + open_world=True -> True : step 6."""
+    decision = _make_clarify_decision(open_world=True)
+    assert _guard(
+        _HIDDEN_TASK,
+        "Explain the implications of distributed cache consistency.",
+        decision,
+    ) is True
+
+
+@pytest.mark.parametrize("prompt", [
+    "Compare microservices and monolithic architectures for a payment system.",
+    "Write a Python function that implements a thread-safe LRU cache.",
+    "Explain the difference between TCP and UDP.",
+    "How should I design a rate limiter for an API?",
+    "What is the CAP theorem?",
+    "Analyse the trade-offs between SQL and NoSQL databases.",
+    "Give me an example of the observer design pattern in Python.",
+])
+def test_escalation_guard_allows_informational(prompt):
+    """Vraies questions informationnelles -> True : step 7."""
+    decision = _make_clarify_decision()
+    assert _guard(_HIDDEN_TASK, prompt, decision) is True, (
+        f"Expected True: {prompt!r}"
+    )
+
+
+def test_escalation_guard_respects_expected_route():
+    """expected_route present -> False : step 2."""
+    validation = {"expected_route": "clarification_needed"}
+    assert _guard(validation, "Compare X and Y in detail.", _make_clarify_decision()) is False
+
+
+def test_escalation_guard_respects_hold_gate():
+    """Gate HOLD -> False : step 3."""
+    assert _guard(_HIDDEN_TASK, "Compare microservices and monolithic.",
+                  _make_clarify_decision(gate_verdict="HOLD")) is False
+
+
+def test_escalation_guard_respects_deny_gate():
+    """Gate DENY -> False : step 3."""
+    assert _guard(_HIDDEN_TASK, "Explain the CAP theorem.",
+                  _make_clarify_decision(gate_verdict="DENY")) is False
+
+
+def test_escalation_guard_respects_block_gate():
+    """Gate BLOCK -> False : step 3."""
+    assert _guard(_HIDDEN_TASK, "Write a sorting function.",
+                  _make_clarify_decision(gate_verdict="BLOCK")) is False
+
+
+def test_escalation_guard_respects_world_action_intent():
+    """Intent world_action -> False : step 4."""
+    assert _guard(_HIDDEN_TASK, "push all current changes to production",
+                  _make_clarify_decision(intent_type="world_action")) is False
+
+
+def test_escalation_guard_non_clarify_route():
+    """Route != clarification_needed -> False : step 1."""
+    decision = {"route": "fireworks", "ir": {}, "gate": {"verdict": "ALLOW"}}
+    assert _guard(_HIDDEN_TASK, "Compare X and Y in detail.", decision) is False

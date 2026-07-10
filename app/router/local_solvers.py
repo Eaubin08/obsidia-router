@@ -105,9 +105,9 @@ def solve_sentiment(raw: str) -> str | None:
     if pos_hits and neg_hits:
         return None  # signaux opposes sans marqueur contraste : nuance requise
     if pos_hits:
-        return ("positive — the text uses positive language such as "
+        return ("positive - the text uses positive language such as "
                 f"{', '.join(repr(w) for w in pos_hits[:3])}.")
-    return ("negative — the text uses negative language such as "
+    return ("negative - the text uses negative language such as "
             f"{', '.join(repr(w) for w in neg_hits[:3])}.")
 
 
@@ -315,13 +315,13 @@ _BRODY_ACTION_SIGNALS = re.compile(
 
 _BRODY_CONTEXT_RESPONSE = (
     "Context depends on the active decision frame. "
-    "Brody is Obsidia's non-sovereign informational organ — "
+    "Brody is Obsidia's non-sovereign informational organ - "
     "it can relay system context but cannot reconstruct specific decisions "
     "without active memory access. Authority remains KX108_ONLY."
 )
 _BRODY_WHY_RESPONSE = (
     "Approach preference depends on the current objective and constraints. "
-    "Brody can help surface relevant context, but does not decide — "
+    "Brody can help surface relevant context, but does not decide - "
     "authority remains KX108_ONLY. "
     "Provide the specific approach reference for a targeted answer."
 )
@@ -454,11 +454,11 @@ _CACHE_COMPLEXITY_ANSWER = (
     "Two common distributed cache strategies:\n\n"
     "Cache-Aside (Lazy Loading)\n"
     "- Read: O(1) hit, O(n) cold miss (load from DB + populate cache)\n"
-    "- Write: O(1) — write to DB, invalidate cache\n"
+    "- Write: O(1) - write to DB, invalidate cache\n"
     "- Consistency: eventual; stale reads possible between write and invalidation\n\n"
     "Write-Through\n"
     "- Read: O(1) after warm-up\n"
-    "- Write: O(1) x2 — synchronous write to cache + DB\n"
+    "- Write: O(1) x2 - synchronous write to cache + DB\n"
     "- Consistency: strong; cache and DB always in sync\n\n"
     "Complexity summary:\n"
     "  Cache-Aside: read O(1) hit / O(n) miss; write O(1)\n"
@@ -621,6 +621,210 @@ def solve_code_generation_token_bucket_tests(raw: str) -> str | None:
     return _TOKEN_BUCKET_ANSWER
 
 
+# ── TOKENMAN zero-token intent classification (local_solvers scope only) ─────
+#
+# Pure regex classification used ONLY to decide whether a high-confidence
+# local code template can answer. Does NOT replace UnifiedInputIR.
+# Weak or ambiguous match → "unknown" → cascade continues (Fireworks).
+
+_ZT_EMAIL_SUBJECT   = re.compile(r"\bemail\b", re.I)
+_ZT_EMAIL_VALIDATE  = re.compile(r"\bvalidat(?:e|es|ion|ing)\b", re.I)
+_ZT_EMAIL_NORMALIZE = re.compile(r"\bnormali[sz](?:e|es|ation|ing)\b", re.I)
+# Aligned on app/ir/unified_ir.py _CODE_WORDS (FR+EN deterministic tables).
+_ZT_CODE_SIGNAL     = re.compile(
+    r"\bpython\b|\bfunction\b|\bfonction\b|\bdef\b|\bcode\b|"
+    r"\bwrite\b|\becris\b|\bimplement\b|\bimplemente\b|\bscript\b", re.I)
+_ZT_SECOND_LARGEST  = re.compile(r"\bsecond.?largest\b", re.I)
+_ZT_LIST_NUMS       = re.compile(r"\blist\b|\bnumbers?\b|\bnums\b", re.I)
+# nth Fibonacci NUMBER only — a "sequence up to n" is a different spec.
+_ZT_FIBONACCI       = re.compile(r"\bnth\s+fibonacci\b|\bfibonacci\s+number\b", re.I)
+_ZT_FIB_SEQUENCE    = re.compile(r"\bsequence\b|\bup\s+to\b|\blist\s+of\b", re.I)
+_ZT_PRIME           = re.compile(r"\bprime\b", re.I)
+_ZT_PRIME_CTX       = re.compile(r"\bpython\b|\bfunction\b|\bcheck\b|\bdef\b", re.I)
+_ZT_DEBUG           = re.compile(r"\bdebug\b|\bfix\b|\bbug\b", re.I)
+_ZT_SYNTAX_ERROR    = re.compile(r"SyntaxError|Traceback", re.I)
+_ZT_CODE_GEN        = re.compile(r"\bwrite\b.*\b(?:python|function)\b|\bimplement\b", re.I)
+
+# Complexity guard: prompts naming these concepts are NEVER template material.
+_ZT_COMPLEX_GUARD = re.compile(
+    r"\basync\b|\bwebsocket\b|\bserver\b|\bthread.?safe\b|\blru\b|\bcache\b|"
+    r"\bdistributed\b|\bdatabase\b|\bframework\b|\bparser\b|\bconcurren",
+    re.I,
+)
+
+
+def classify_intent_zero_token(prompt: str) -> str:
+    """Zero-token intent label for local code templates. Ordered by specificity.
+
+    Returns one of: code_email_normalize, code_second_largest, code_fibonacci,
+    code_prime, code_debug_syntax, code_gen_generic, unknown.
+    'unknown' on any doubt — this classification never forces a local answer.
+    """
+    if _ZT_COMPLEX_GUARD.search(prompt):
+        return "unknown"
+    if (_ZT_EMAIL_SUBJECT.search(prompt) and _ZT_EMAIL_VALIDATE.search(prompt)
+            and _ZT_EMAIL_NORMALIZE.search(prompt) and _ZT_CODE_SIGNAL.search(prompt)):
+        return "code_email_normalize"
+    if _ZT_SECOND_LARGEST.search(prompt) and _ZT_LIST_NUMS.search(prompt):
+        return "code_second_largest"
+    if (_ZT_FIBONACCI.search(prompt) and _ZT_CODE_SIGNAL.search(prompt)
+            and not _ZT_FIB_SEQUENCE.search(prompt)):
+        return "code_fibonacci"
+    if _ZT_PRIME.search(prompt) and _ZT_PRIME_CTX.search(prompt):
+        return "code_prime"
+    if _ZT_SYNTAX_ERROR.search(prompt) and _ZT_DEBUG.search(prompt):
+        return "code_debug_syntax"
+    if _ZT_CODE_GEN.search(prompt):
+        return "code_gen_generic"
+    return "unknown"
+
+
+def _tests_requested(raw: str) -> bool:
+    return bool(re.search(r"\btests?\b|\bunittest\b|\bpytest\b", raw, re.I))
+
+
+# ── High-confidence code templates (zero Fireworks tokens) ────────────────────
+
+_EMAIL_TEMPLATE_CODE = """\
+def validate_and_normalize_email(email):
+    import re
+    if not isinstance(email, str):
+        raise ValueError("email must be a string")
+    email = email.strip()
+    pattern = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'
+    if not re.fullmatch(pattern, email):
+        raise ValueError("invalid email address")
+    local, domain = email.split('@', 1)
+    return f"{local.lower()}@{domain.lower()}\""""
+
+_EMAIL_TEMPLATE_TESTS = """
+
+assert validate_and_normalize_email('  USER.Name+tag@Example.COM  ') == 'user.name+tag@example.com'
+assert validate_and_normalize_email('a@b.co') == 'a@b.co'"""
+
+
+def solve_code_email_normalize(raw: str) -> str | None:
+    """Email validate+normalize function, optional simple asserts.
+
+    Fires only when classify_intent_zero_token → code_email_normalize:
+    email + validate + normalize + python/function signals, and no complexity
+    guard keyword. Any variation → None → Fireworks.
+    """
+    if classify_intent_zero_token(raw) != "code_email_normalize":
+        return None
+    answer = _EMAIL_TEMPLATE_CODE
+    if _tests_requested(raw):
+        answer += _EMAIL_TEMPLATE_TESTS
+    return answer
+
+
+_FIBONACCI_TEMPLATE_CODE = """\
+def fibonacci(n):
+    if n < 0:
+        raise ValueError("n must be non-negative")
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return a"""
+
+_FIBONACCI_TEMPLATE_TESTS = """
+
+assert fibonacci(0) == 0
+assert fibonacci(1) == 1
+assert fibonacci(10) == 55"""
+
+
+def solve_code_fibonacci(raw: str) -> str | None:
+    """Iterative fibonacci, optional simple asserts. Fingerprint-gated."""
+    if classify_intent_zero_token(raw) != "code_fibonacci":
+        return None
+    answer = _FIBONACCI_TEMPLATE_CODE
+    if _tests_requested(raw):
+        answer += _FIBONACCI_TEMPLATE_TESTS
+    return answer
+
+
+_PRIME_TEMPLATE_CODE = """\
+def is_prime(n):
+    if n < 2:
+        return False
+    i = 2
+    while i * i <= n:
+        if n % i == 0:
+            return False
+        i += 1
+    return True"""
+
+_PRIME_TEMPLATE_TESTS = """
+
+assert is_prime(2) is True
+assert is_prime(4) is False
+assert is_prime(13) is True"""
+
+
+def solve_code_prime(raw: str) -> str | None:
+    """sqrt-loop primality check, optional simple asserts. Fingerprint-gated."""
+    if classify_intent_zero_token(raw) != "code_prime":
+        return None
+    answer = _PRIME_TEMPLATE_CODE
+    if _tests_requested(raw):
+        answer += _PRIME_TEMPLATE_TESTS
+    return answer
+
+
+# ── CITER minimal span extractor (deterministic, not wired into routing) ──────
+#
+# Reduces a large code snippet to its critical lines for a FUTURE bounded
+# escalation. Never resolves unknown code by itself. Not used when a local
+# template matches, and not used for short generation prompts.
+
+_CITER_KEY_LINE = re.compile(
+    r"^\s*(?:def |return |import |from |class |async |await )", re.I)
+_CITER_ERROR_LINE = re.compile(r"SyntaxError|Traceback|\bError\b", re.I)
+_CITER_MAX_CHARS = 1200
+_CITER_SHORT_LOGIC_LEN = 60
+
+
+def extract_citer_spans(code_snippet: str) -> list[str]:
+    """Extract critical lines from a code snippet, in order, bounded size.
+
+    Keeps: def/return/import/from/class/async/await lines, error/traceback
+    lines, and short compact-logic lines (assignment/operator, <= 60 chars).
+    Plain prose without code structure yields an empty or near-empty list.
+    """
+    spans: list[str] = []
+    total = 0
+    for line in code_snippet.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        keep = bool(_CITER_KEY_LINE.match(line) or _CITER_ERROR_LINE.search(line))
+        if not keep and len(stripped) <= _CITER_SHORT_LOGIC_LEN:
+            # short compact logic: assignment or comparison, not prose
+            if re.search(r"[=<>+\-*/%]", stripped) and not stripped.startswith("#"):
+                # require code-ish shape: no sentence-ending period + space
+                if ". " not in stripped:
+                    keep = True
+        if keep:
+            if total + len(stripped) > _CITER_MAX_CHARS:
+                break
+            spans.append(stripped)
+            total += len(stripped)
+    return spans
+
+
+def build_citer_compressed_prompt(task_prompt: str, code_snippet: str) -> str:
+    """Compressed prompt for a future bounded escalation. Not wired yet.
+
+    Use only when: a real code snippet is present, no local template matched,
+    and a Fireworks route is already required.
+    """
+    spans = extract_citer_spans(code_snippet)
+    if not spans:
+        return task_prompt
+    return task_prompt.strip() + "\n\nRelevant code:\n" + "\n".join(spans)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def try_local_solvers(raw: str) -> dict | None:
@@ -641,7 +845,11 @@ def try_local_solvers(raw: str) -> dict | None:
                      (solve_code_generation_second_largest,
                       "code_gen_second_largest_local"),
                      (solve_code_generation_token_bucket_tests,
-                      "code_gen_token_bucket_local")):
+                      "code_gen_token_bucket_local"),
+                     (solve_code_email_normalize,
+                      "code_email_normalize_local"),
+                     (solve_code_fibonacci, "code_fibonacci_local"),
+                     (solve_code_prime, "code_prime_local")):
         ans = fn(raw)
         if ans is not None:
             return {"answer": ans, "solver": name}

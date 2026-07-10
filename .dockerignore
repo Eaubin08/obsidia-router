@@ -3,4 +3,15 @@ __pycache__
 *.pyc
 .pytest_cache
 .env
-results/*.json
+
+# generated artifacts -- never needed in the image
+results/
+*.md
+
+# test / audit / temp directories
+.local_audit_*/
+tmp_official_input/
+tmp_official_output/
+tmp_official_input;C/
+tmp_official_output;C/
+freeze_live_baseline_*/
