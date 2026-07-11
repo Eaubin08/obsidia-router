@@ -31,7 +31,10 @@ from app.cli import run_one
 from app.metrics.collector import MetricsCollector
 from app.router.decision import DEFAULT_MODEL_LADDER
 from app.router.model_triage import select_model_for_request
-from benchmarks.track1_remote_answer_contract import build_remote_answer_contract
+from benchmarks.track1_remote_answer_contract import (
+    build_remote_answer_contract,
+    build_compact_override,
+)
 from benchmarks.track1_escalation_guard import (
     should_escalate_clarification_to_fireworks,
 )
@@ -147,10 +150,11 @@ def resolve_task(task: dict, ctx: RuntimeContext) -> dict:
         sel = select_model_for_request(
             prompt, ctx.ladder, answer_kind=contract["answer_kind"])
         model = sel["selected_model"]
+        compact = build_compact_override(prompt, contract["answer_kind"])
         fw = fireworks.chat(
             model, prompt,
-            max_tokens=contract["max_tokens"],
-            system=contract["contract_prompt"],
+            max_tokens=compact["completion_budget"],
+            system=compact["compact_system"],
             timeout=ctx.remote_timeout_s(),
         )
         decision.update(
@@ -183,8 +187,14 @@ def resolve_task(task: dict, ctx: RuntimeContext) -> dict:
             last["contract_model_preference"] = contract["model_preference"]
             last["actual_model_used"] = model
             last["raw_prompt_chars"] = len(prompt)
-            last["system_prompt_chars"] = len(contract["contract_prompt"])
-            last["compression_applied"] = False
+            last["system_prompt_chars"] = len(compact["compact_system"])
+            last["compression_applied"] = True
+            last["compact_profile"] = compact["compact_profile"]
+            last["estimated_prompt_tokens"] = compact["estimated_prompt_tokens"]
+            last["completion_budget"] = compact["completion_budget"]
+            last["over_300"] = (
+                fw.get("total_tokens", 0) > 300
+            )
         rec = ctx.metrics.records[-1] if ctx.metrics.records else rec
         route = "fireworks"
         local_candidate_valid = False

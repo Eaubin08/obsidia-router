@@ -68,16 +68,20 @@ def run_obsidia_router(task: dict) -> dict:
 
     # If route is fireworks and API available → would spend tokens
     if route == "fireworks" and API_LIVE:
-        from benchmarks.track1_remote_answer_contract import build_remote_answer_contract
+        from benchmarks.track1_remote_answer_contract import (
+            build_remote_answer_contract,
+            build_compact_override,
+        )
         contract = build_remote_answer_contract(task["prompt"])
+        compact = build_compact_override(task["prompt"], contract["answer_kind"])
         # LOT D parity: the model actually called must be decide()'s own
         # central-triage selection (decision["model"]), never the
         # contract's informative model_preference field.
         fw = fireworks.chat(
             decision["model"],
             task["prompt"],
-            max_tokens=contract["max_tokens"],
-            system=contract["contract_prompt"],
+            max_tokens=compact["completion_budget"],
+            system=compact["compact_system"],
         )
         answer = fw.get("text", "")
         tokens = fw.get("total_tokens", 0)

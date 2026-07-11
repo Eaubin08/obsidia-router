@@ -333,3 +333,85 @@ def build_remote_answer_contract(
         "calibration_source":        "quality_discovery_v1",
         "budget_headroom_policy":    "human_margin_high_v0",
     }
+
+
+# ── Compact override for frontier / remote Fireworks calls ────────────────────
+#
+# Applied ONLY before fireworks.chat() when needs_escalation is True.
+# Never affects local solver routes. Never affects governed gates.
+# Target: total_tokens (prompt + completion) ~ 300, hard cases <= 400.
+#
+# Formula: completion_budget = min(profile_cap, max(64, target - estimated_prompt_tokens))
+# estimated_prompt_tokens ≈ len(prompt) // 4  (4 chars/token heuristic)
+
+_COMPACT_TARGET: dict[str, int] = {
+    "comparison":         300,
+    "structured_summary": 280,
+    "code_file":          380,
+    "direct_answer":      280,
+    "clarification":       80,
+}
+
+_COMPACT_CAP: dict[str, int] = {
+    "comparison":         220,
+    "structured_summary": 180,
+    "code_file":          340,
+    "direct_answer":      200,
+    "clarification":       60,
+}
+
+_COMPACT_SYSTEM: dict[str, str] = {
+    "direct_answer": (
+        "Concise answer only. No preamble. No chain-of-thought. "
+        "If unknown, say INSUFFICIENT. Answer in English."
+    ),
+    "comparison": (
+        "Max 3 bullets: A:, B:, Trade-offs:. No preamble. "
+        "No chain-of-thought. Answer in English."
+    ),
+    "structured_summary": (
+        "Final only. Plain text. Follow requested format exactly. "
+        "No preamble. No analysis. Answer in English."
+    ),
+    "code_file": (
+        "Code only. Start with def or class. "
+        "No prose, no markdown, no docstring. Answer in English."
+    ),
+    "clarification": (
+        "Ask one clarifying question only. Answer in English."
+    ),
+}
+
+
+def build_compact_override(
+    request: str,
+    answer_kind: str,
+    target_total_tokens: int | None = None,
+) -> dict:
+    """Compact budget override — reduces max_tokens before a frontier Fireworks call.
+
+    Never changes routing decisions. Applied only after needs_escalation is True.
+    Replaces contract max_tokens and contract_prompt with tighter values.
+
+    Returns a dict with:
+      completion_budget  — the max_tokens to pass to fireworks.chat()
+      compact_system     — the tighter system prompt
+      estimated_prompt_tokens  — prompt length // 4
+      profile_cap        — per-kind ceiling
+      target_total_tokens — token budget goal
+      compact_applied    — always True
+    """
+    target = target_total_tokens or _COMPACT_TARGET.get(answer_kind, 280)
+    profile_cap = _COMPACT_CAP.get(answer_kind, 200)
+    estimated_prompt_tokens = len(request) // 4
+    completion_budget = min(profile_cap, max(64, target - estimated_prompt_tokens))
+    system = _COMPACT_SYSTEM.get(answer_kind, _COMPACT_SYSTEM["direct_answer"])
+    return {
+        "completion_budget":          completion_budget,
+        "compact_system":             system,
+        "estimated_prompt_tokens":    estimated_prompt_tokens,
+        "profile_cap":                profile_cap,
+        "target_total_tokens":        target,
+        "compact_applied":            True,
+        "compact_profile":            answer_kind,
+    }
