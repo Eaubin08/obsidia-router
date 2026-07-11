@@ -5,6 +5,10 @@ __pycache__/
 results/*.json
 !results/.gitkeep
 
+# Track 1 local harness: generated outputs never committed
+submission/track1/output/*
+!submission/track1/output/.gitkeep
+
 # Local-only artifacts (audits, fixtures, official harness IO) - never submit
 .local_*/
 .local_*

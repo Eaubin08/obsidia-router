@@ -1,0 +1,148 @@
+# Track 1 submission — reproduction guide
+
+How to build, run and validate the exact surface the AMD judge evaluates.
+All commands are Windows PowerShell. No real API key ever appears in this file.
+
+---
+
+## A. What AMD runs
+
+```text
+/input/tasks.json
+  → Docker CMD  (python scripts/run_official.py)
+  → Obsidia Router: IR → gates → level decision → optional bounded Fireworks escalation
+  → /output/results.json   [{"task_id": "...", "answer": "..."}] — nothing else
+  → exit 0 (success) / non-zero (error)
+```
+
+The judge does **not** run:
+
+- the internal benchmarks (`benchmarks/run_benchmark.py`, `answer_accuracy.py`, …);
+- the interactive terminal (`python -m app.cli`);
+- any Track 3 demo or documentation tooling;
+- the full private Obsidia stack (Brody, Obsidure, Sigma, Lean, X-108 kernel).
+  The container ships only the evaluated routing slice.
+
+## B. Requirements
+
+- Docker Desktop (or Docker Engine), `linux/amd64` capable.
+- Python 3.10+ on the host — only for the local output validator.
+- Environment variables injected by the AMD harness at run time:
+
+| Variable | Role |
+|---|---|
+| `FIREWORKS_API_KEY` | enables live Fireworks calls; without it the container runs in dry-run mode |
+| `FIREWORKS_BASE_URL` | Fireworks endpoint override (defaults to the official API) |
+| `ALLOWED_MODELS` | comma-separated model ladder; the router never calls a model outside it |
+
+## C. Safe dry run (zero token, no key required)
+
+Build:
+
+```powershell
+docker build -t obsidia-router:track1-local .
+```
+
+Clean previous output:
+
+```powershell
+Remove-Item .\submission\track1\output\results.json -ErrorAction SilentlyContinue
+```
+
+Run the 8 AMD practice categories without any credentials:
+
+```powershell
+docker run --rm `
+  -v "${PWD}\submission\track1\input:/input:ro" `
+  -v "${PWD}\submission\track1\output:/output" `
+  obsidia-router:track1-local
+```
+
+> Note: the container reads `/input/tasks.json`. To use the practice set as-is,
+> either copy it to `tasks.json` in the mounted input directory, or mount the
+> file directly:
+> `-v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro"`
+
+Capture the exit code:
+
+```powershell
+$dockerRc = $LASTEXITCODE
+Write-Host "DOCKER_EXIT_CODE=$dockerRc"
+if ($dockerRc -ne 0) {
+    throw "Track 1 container failed with exit code $dockerRc"
+}
+```
+
+Validate the output contract:
+
+```powershell
+python .\submission\track1\validate_output.py `
+  .\submission\track1\input\practice_tasks.json `
+  .\submission\track1\output\results.json
+```
+
+Expected:
+
+```text
+TRACK1_OUTPUT_VALIDATION = PASS
+tasks_in = 8
+answers_out = 8
+schema = STRICT
+missing = 0
+extra = 0
+empty_answers = 0
+```
+
+## D. Live-compatible local run
+
+> ⚠ **This command can spend Fireworks tokens when a real API key is present.**
+> Run it deliberately, never as part of an automatic validation pack.
+
+```powershell
+docker run --rm `
+  -e FIREWORKS_API_KEY=$env:FIREWORKS_API_KEY `
+  -e FIREWORKS_BASE_URL=$env:FIREWORKS_BASE_URL `
+  -e ALLOWED_MODELS=$env:ALLOWED_MODELS `
+  -v "${PWD}\submission\track1\input:/input:ro" `
+  -v "${PWD}\submission\track1\output:/output" `
+  obsidia-router:track1-local
+```
+
+## E. Output contract
+
+`/output/results.json` contains exactly one JSON list, one object per task,
+no extra keys, English answers only:
+
+```json
+[
+  {
+    "task_id": "practice-01",
+    "answer": "..."
+  }
+]
+```
+
+Per-call Fireworks timeout is clamped in code to 25 s (under the 30 s
+per-answer cap); the clamp cannot be raised by environment or caller.
+
+## F. Evidence levels
+
+- `PRACTICE` — the 8 AMD practice categories (this harness).
+- `INTERNAL_DRY` — internal 18-task routing benchmark, zero token.
+- `LIVE_SAMPLE` — real Fireworks calls on a small sample.
+- `OFFICIAL_HIDDEN` — the AMD judge; unknown until executed.
+
+> The practice harness validates container behavior. It does not predict the
+> hidden AMD judge score.
+
+## G. Submission image
+
+```text
+Public image: TO_BE_PUBLISHED
+Immutable tag: TO_BE_PUBLISHED
+Digest: TO_BE_PUBLISHED
+Public pull test: NOT_YET_RUN
+```
+
+These fields are filled by the registry publication lot (GHCR workflow) and
+are the single source of truth for the submitted image URL.

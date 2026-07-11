@@ -1,0 +1,34 @@
+[
+  {
+    "task_id": "practice-01",
+    "prompt": "What is the capital of Australia?"
+  },
+  {
+    "task_id": "practice-02",
+    "prompt": "A train travels 180 kilometers in 2.5 hours. What is its average speed in kilometers per hour?"
+  },
+  {
+    "task_id": "practice-03",
+    "prompt": "Classify the sentiment of this review as positive, negative, or neutral: 'The battery lasts forever and the screen is gorgeous, but the keyboard feels cheap.'"
+  },
+  {
+    "task_id": "practice-04",
+    "prompt": "Summarize the following passage in two sentences: 'Solar panels convert sunlight into electricity using photovoltaic cells. Over the past decade, their cost has fallen by more than 80 percent, making them one of the cheapest sources of new electricity in many countries. However, their output varies with weather and daylight, so grids that rely heavily on solar power need storage or backup generation to remain stable.'"
+  },
+  {
+    "task_id": "practice-05",
+    "prompt": "Extract all named entities (people, organizations, locations) from this sentence: 'Satya Nadella announced that Microsoft will open a new research lab in Nairobi in partnership with the University of Cambridge.'"
+  },
+  {
+    "task_id": "practice-06",
+    "prompt": "Find and fix the bug in this Python function:\n\ndef average(numbers):\n    total = 0\n    for n in numbers:\n        total += n\n    return total / len(numbers) + 1"
+  },
+  {
+    "task_id": "practice-07",
+    "prompt": "All roses in the garden are red. Some flowers in the garden are roses. Can we conclude that some flowers in the garden are red? Answer yes or no and explain briefly."
+  },
+  {
+    "task_id": "practice-08",
+    "prompt": "Write a Python function that takes a list of integers and returns a new list containing only the even numbers, preserving their original order."
+  }
+]
