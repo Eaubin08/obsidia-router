@@ -353,10 +353,10 @@ _COMPACT_TARGET: dict[str, int] = {
 }
 
 _COMPACT_CAP: dict[str, int] = {
-    "comparison":         220,
-    "structured_summary": 180,
-    "code_file":          340,
-    "direct_answer":      200,
+    "comparison":         190,
+    "structured_summary": 160,
+    "code_file":          320,
+    "direct_answer":      170,
     "clarification":       60,
 }
 

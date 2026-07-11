@@ -35,6 +35,7 @@ from benchmarks.track1_remote_answer_contract import (
     build_remote_answer_contract,
     build_compact_override,
 )
+from benchmarks.track1_prompt_compressor import build_frontier_remote_prompt
 from benchmarks.track1_escalation_guard import (
     should_escalate_clarification_to_fireworks,
 )
@@ -151,8 +152,11 @@ def resolve_task(task: dict, ctx: RuntimeContext) -> dict:
             prompt, ctx.ladder, answer_kind=contract["answer_kind"])
         model = sel["selected_model"]
         compact = build_compact_override(prompt, contract["answer_kind"])
+        remote_prompt, prompt_meta = build_frontier_remote_prompt(
+            prompt, contract["answer_kind"]
+        )
         fw = fireworks.chat(
-            model, prompt,
+            model, remote_prompt,
             max_tokens=compact["completion_budget"],
             system=compact["compact_system"],
             timeout=ctx.remote_timeout_s(),
@@ -192,9 +196,12 @@ def resolve_task(task: dict, ctx: RuntimeContext) -> dict:
             last["compact_profile"] = compact["compact_profile"]
             last["estimated_prompt_tokens"] = compact["estimated_prompt_tokens"]
             last["completion_budget"] = compact["completion_budget"]
-            last["over_300"] = (
-                fw.get("total_tokens", 0) > 300
-            )
+            last["over_300"] = fw.get("total_tokens", 0) > 300
+            last["prompt_chars_before"] = prompt_meta["prompt_chars_before"]
+            last["prompt_chars_after"] = prompt_meta["prompt_chars_after"]
+            last["prompt_compression_applied"] = prompt_meta["prompt_compression_applied"]
+            last["compression_ratio"] = prompt_meta["compression_ratio"]
+            last["citer_used"] = prompt_meta["citer_used"]
         rec = ctx.metrics.records[-1] if ctx.metrics.records else rec
         route = "fireworks"
         local_candidate_valid = False

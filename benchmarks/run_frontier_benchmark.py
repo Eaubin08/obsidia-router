@@ -72,14 +72,18 @@ def run_obsidia_router(task: dict) -> dict:
             build_remote_answer_contract,
             build_compact_override,
         )
+        from benchmarks.track1_prompt_compressor import build_frontier_remote_prompt
         contract = build_remote_answer_contract(task["prompt"])
         compact = build_compact_override(task["prompt"], contract["answer_kind"])
+        remote_prompt, _pm = build_frontier_remote_prompt(
+            task["prompt"], contract["answer_kind"]
+        )
         # LOT D parity: the model actually called must be decide()'s own
         # central-triage selection (decision["model"]), never the
         # contract's informative model_preference field.
         fw = fireworks.chat(
             decision["model"],
-            task["prompt"],
+            remote_prompt,
             max_tokens=compact["completion_budget"],
             system=compact["compact_system"],
         )
