@@ -88,11 +88,14 @@ python benchmarks/answer_accuracy.py
 python benchmarks/run_benchmark.py --track1-official --stack-v3b
 # expected: 18/18 route accuracy, 0 tokens, 0 remote (INTERNAL_DRY)
 
-# official runner on a local sample                   [LIVE if key set]
-python scripts/run_official.py --input tmp_live_input/tasks.json --output tmp_live_output/results.json
-# with FIREWORKS_API_KEY: ~389 tokens, 1/5 remote calls (LIVE_SAMPLE)
-# without key: dry-run, routing still fully validated
+# official judge path on the 8 practice tasks         [SAFE without key]
+python scripts/run_official.py --input submission/track1/input/practice_tasks.json --output submission/track1/output/results.json
+python submission/track1/validate_output.py submission/track1/input/practice_tasks.json submission/track1/output/results.json
+# expected: TRACK1_OUTPUT_VALIDATION = PASS, 8/8 answers, strict schema
 ```
+
+Full judge-path reproduction guide (Docker, exit codes, output contract):
+[docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md)
 
 ⚠ **Commands that spend Fireworks tokens** (`--live-baseline`,
 `--random-compare`, `run_frontier_benchmark.py --live`, `probe_ladder.py`,
@@ -102,20 +105,29 @@ deliberately — never as part of an automatic validation pack.
 
 ### Docker (required for submission)
 
-```bash
+```powershell
 docker build -t obsidia-router .
 
-# Official harness mode (default CMD): requires /input and /output mounts.
-# Reads /input/tasks.json, writes /output/results.json.
-docker run -e FIREWORKS_API_KEY=... \
-  -v /host/input:/input -v /host/output:/output obsidia-router
+# Official harness mode (default CMD): reads /input/tasks.json,
+# writes /output/results.json. SAFE dry run — no key, zero token:
+docker run --rm `
+  -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
+  -v "${PWD}\submission\track1\output:/output" `
+  obsidia-router
 
-# Local dev: benchmark dry-run (no mounts, no credentials needed)
-docker run obsidia-router python benchmarks/run_benchmark.py
-
-# Interactive demo
-docker run -it obsidia-router python -m app.cli
+# Live-compatible run (⚠ spends Fireworks tokens when a real key is present):
+docker run --rm `
+  -e FIREWORKS_API_KEY=$env:FIREWORKS_API_KEY `
+  -e FIREWORKS_BASE_URL=$env:FIREWORKS_BASE_URL `
+  -e ALLOWED_MODELS=$env:ALLOWED_MODELS `
+  -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
+  -v "${PWD}\submission\track1\output:/output" `
+  obsidia-router
 ```
+
+Note: the image ships only the evaluated Track 1 slice (`app/`, the official
+runner and its four contract modules). Benchmarks, tests and the interactive
+demo run from the repo, not from the container.
 
 ## Environment variables
 

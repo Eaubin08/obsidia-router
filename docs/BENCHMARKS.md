@@ -96,11 +96,18 @@ boundary map, footprint, cognitive value inputs — all readonly projections).
 ### RUN_SUBMISSION_LIVE  [LIVE if FIREWORKS_API_KEY set]
 
 ```powershell
-python scripts/run_official.py --input .\tmp_live_input\tasks.json --output .\tmp_live_output\results.json; `
 docker build -t obsidia-router .; `
-docker run -e FIREWORKS_API_KEY=$env:FIREWORKS_API_KEY -v ${PWD}\tmp_live_input:/input -v ${PWD}\tmp_docker_output:/output obsidia-router
-# validate: output is a pure JSON list of {"task_id", "answer"} only
+docker run --rm `
+  -e FIREWORKS_API_KEY=$env:FIREWORKS_API_KEY `
+  -e FIREWORKS_BASE_URL=$env:FIREWORKS_BASE_URL `
+  -e ALLOWED_MODELS=$env:ALLOWED_MODELS `
+  -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
+  -v "${PWD}\submission\track1\output:/output" `
+  obsidia-router; `
+python .\submission\track1\validate_output.py .\submission\track1\input\practice_tasks.json .\submission\track1\output\results.json
 ```
+
+Full walkthrough with exit-code capture: [TRACK1_SUBMISSION.md](TRACK1_SUBMISSION.md).
 
 No comparative baseline and no model matrix are included in this pack. This is the submission path only.
 

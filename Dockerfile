@@ -28,6 +28,6 @@ ENV PYTHONUNBUFFERED=1
 #   writes /output/results.json  [{"task_id","answer"}] only
 #   no benchmark phases, no REPORT.md, no receipts
 #
-# Local dev override:
-#   docker run obsidia-router python benchmarks/run_benchmark.py --stack-v3b
+# The image ships only the evaluated Track 1 slice. Benchmarks, tests and the
+# interactive demo run from the repository, not from this container.
 CMD ["python", "scripts/run_official.py"]
