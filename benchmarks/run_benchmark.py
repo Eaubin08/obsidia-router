@@ -407,8 +407,8 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         "",
         "### Path quality",
         "",
-        f"- Route match: **{rq.get('route_matches')}/{rq.get('tasks')}**",
-        f"- `route_correct=true`: **{rq.get('route_correct_true')}/{rq.get('tasks')}**",
+        f"- Exact route match: **{rq.get('route_matches')}/{rq.get('tasks')}**",
+        f"- Accepted route accuracy (`route_correct=true`): **{rq.get('route_correct_true')}/{rq.get('tasks')}**",
         f"- Level-0 model leaks: **{pq.get('level0_model_leaks')}** / {pq.get('level0_tasks')} level-0 tasks",
         f"- HOLD / DENY / CLARIFY model leaks: **{pq.get('hold_deny_clarify_model_leaks')}** / {pq.get('hold_deny_clarify_tasks')} tasks",
         f"- World-action model leaks: **{pq.get('world_action_model_leaks')}** / {pq.get('world_action_tasks')} tasks",
@@ -416,7 +416,7 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         "",
         "### Escalation quality",
         "",
-        f"- Fireworks expected / actual: **{eq.get('fireworks_expected')} / {eq.get('fireworks_actual')}**",
+        f"- Expected Fireworks route / actual remote calls: **{eq.get('fireworks_expected')} / {eq.get('fireworks_actual')}**",
         f"- Unnecessary Fireworks calls: **{eq.get('unnecessary_fireworks_calls')}**",
         f"- Fireworks calls under ALLOW gate: **{eq.get('fireworks_only_on_allow')}/{eq.get('fireworks_actual')}**",
         f"- Level-0 Fireworks token leaks: **{eq.get('level0_fireworks_token_leaks')}**",
@@ -1158,6 +1158,31 @@ def run_random_comparative_phase(
     }
 
 
+# Capture-only headroom for the raw-model comparison arm.
+#
+# These values do not change the bounded Obsidia answer contract.
+# They only prevent the direct-model baseline from losing its final
+# answer because a reasoning model exhausted the adapter default cap.
+_BASELINE_CAPTURE_POLICY = "raw_model_capture_headroom_v1"
+
+_BASELINE_CAPTURE_BUDGETS = {
+    "comparison": 850,
+    "structured_summary": 900,
+    "code_file": 1700,
+    "direct_answer": 850,
+    "clarification": 320,
+}
+
+
+def _baseline_capture_max_tokens(request: str) -> int:
+    answer_kind = build_remote_answer_contract(request)["answer_kind"]
+
+    return _BASELINE_CAPTURE_BUDGETS.get(
+        answer_kind,
+        _BASELINE_CAPTURE_BUDGETS["direct_answer"],
+    )
+
+
 def main() -> int:
     _main_t0 = time.perf_counter()
     live_baseline = "--live-baseline" in sys.argv
@@ -1330,7 +1355,14 @@ def main() -> int:
         baseline_answer = None
         if live_baseline:
             # Classic-agent arm: the raw request goes straight to the model.
-            b = fireworks.chat(baseline_model, task["request"])
+            _baseline_max_tokens = _baseline_capture_max_tokens(
+                task["request"]
+            )
+            b = fireworks.chat(
+                baseline_model,
+                task["request"],
+                max_tokens=_baseline_max_tokens,
+            )
             baseline_tokens += b["total_tokens"]
             baseline_in_tok += b["prompt_tokens"]
             baseline_out_tok += b["completion_tokens"]
@@ -1708,11 +1740,11 @@ def main() -> int:
     sp = q["speed_profile"]
     print()
     print("QUALITY AXES (path / speed / escalation — no global score)")
-    print(f"  route_match              : {rq['route_matches']}/{rq['tasks']}")
+    print(f"  exact route match        : {rq['route_matches']}/{rq['tasks']}")
     print(f"  level0_model_leaks       : {pq['level0_model_leaks']}")
     print(f"  hold/deny/clarify leaks  : {pq['hold_deny_clarify_model_leaks']}")
     print(f"  world_action leaks       : {pq['world_action_model_leaks']}")
-    print(f"  fireworks expected/actual: {eq['fireworks_expected']}/{eq['fireworks_actual']}")
+    print(f"  expected FW / remote use : {eq['fireworks_expected']}/{eq['fireworks_actual']}")
     print(f"  unnecessary fireworks    : {eq['unnecessary_fireworks_calls']}")
     print(f"  level0 token leaks       : {eq['level0_fireworks_token_leaks']}")
     print(f"  dynamic speed            : {sp['dynamic_avg_decision_ms']} ms/decision, ~{sp['dynamic_decisions_per_second']} decisions/s")
