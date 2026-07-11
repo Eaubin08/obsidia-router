@@ -38,8 +38,15 @@ decides when inference is necessary.**
   code fingerprints — at zero token.
 - Risky requests (push, deploy, rm -rf, ACT) are HOLD / DENY / CLARIFY at
   level 0. A HOLD is a valid answer.
+- Two evaluation regimes, stated plainly. In the local governed path
+  (demo, internal benchmark), missing structure produces CLARIFY rather than
+  fabricated certainty — abstention at 0 token. In the official hidden-task
+  evaluation path, unresolved **informational** requests may be escalated
+  through a bounded answer contract, so the evaluator receives a controlled
+  answer instead of a placeholder. Governed world actions (HOLD/DENY) are
+  never escalated in either regime.
 - Fireworks becomes useful only beyond the local frontier, under a bounded
-  answer contract (capped tokens, forced English, cheapest sufficient model).
+  answer contract (capped tokens, forced English, calibrated default model).
 - `KX108_ONLY` remains the decision authority on every row: no real action,
   no memory write, no kernel mutation — the layer emits verdicts only.
 - Brody, Obsidure, Lean and the domain connectors are non-sovereign or
@@ -76,6 +83,39 @@ decides when inference is necessary.**
 | Footprint | 0 GB embedded learned weights in a 1.88 MB stack (public cut only) | `benchmarks/footprint.py` via `run_benchmark.py` | `results/REPORT.md` |
 | Cognitive value inputs | readonly projection, 5 whitelisted groups, mint/wallet/economic_scoring = false, status DEFERRED | `benchmarks/value_inputs.py` (enforced by `tests/test_value_inputs.py`) | `results/REPORT.md` |
 | Governance baseline violations | Obsidia: 0/8 on governed tasks. Raw-model baseline: **optional live evidence** — requires `--live-baseline`, not measured in the committed snapshot | `run_benchmark.py --live-baseline` (⚠ spends tokens) | `results/REPORT.md` governance table |
+
+## 4b. Govern before inference — four blocks, each backed by existing evidence
+
+**HOLD — do not proceed while the request is not admissible.**
+Evidence (MEASURED): GOVERNED_NEVER_MODEL = 6 tasks in the frontier report
+(4 HOLD, 2 DENY variants across the internal sets), 0 remote tokens;
+invariants `no_auto_act` / `no_auto_commit` / `no_auto_push` attached to
+every verdict. Required nuance: the public cut **emits governed verdicts** —
+it does not execute or physically block real-world actions. Decision
+authority remains `KX108_ONLY`.
+
+**CLARIFY — do not fabricate certainty when required structure is missing.**
+Evidence (MEASURED): missing fields are produced deterministically by
+UnifiedInputIR; 4 CLARIFY rows in the internal 18-task benchmark and
+FRONTIER_ABSTAIN = 5 in the frontier report, all at 0 remote tokens in the
+local governed path. Judge-mode nuance (EXECUTED): in the official
+hidden-task path, an unresolved informational request escalates under the
+bounded answer contract rather than returning a placeholder (see §2).
+
+**LOCAL VERIFY — do not predict what can be calculated, matched or verified
+locally.** Evidence (MEASURED): 15 deterministic local closures in the
+frontier evidence (SOLO_SAFE), 8/8 practice tasks closed at 0 Fireworks
+tokens, and **0 false local closures**. These are high-confidence
+deterministic closures on recognized structures — not general local code
+intelligence, not full program analysis, not formal verification of
+arbitrary code.
+
+**REMOTE INFERENCE — escalate only when the problem remains genuinely
+open.** Evidence (MEASURED): FIREWORKS_USEFUL = 9 in the frontier evidence;
+every remote call goes through the bounded remote answer contract; live
+sample ≈389 tokens with 1/5 remote calls. Honest boundary: the *when to
+infer* decision is demonstrated; the adaptive *which model size* triage is
+still under technical repair and is **not** claimed as closed.
 
 ## 5. Frontier story
 
@@ -127,6 +167,22 @@ The public repo is the **evaluated and demonstrable slice** of a larger
 system. It does not contain the full Obsidia architecture, and does not
 pretend to.
 
+### Local code analysis — exact technical status
+
+The local solver strategy follows an Obsidure-compatible principle:
+**inspect, reduce and verify locally before requesting remote prediction.**
+The doctrine is already visible in the local-first architecture; the deeper
+Obsidure code-analysis integration remains a declared next layer, not a
+current benchmark claim. Component by component:
+
+| Component | Status in this public cut |
+|---|---|
+| Local solvers | **Active** Track 1 router components (EXECUTED, MEASURED) |
+| Obsidure | Proposal-only, non-sovereign **route** (`obsidure_route_only`) — it does not execute the solvers |
+| CITER / critical-span extractor | **Implemented, not wired** into the remote execution path (unit-tested only) |
+| AST analysis | **Not implemented** in the current public cut |
+| Obsidure engine + CITER + AST integration | **Deferred** / future integration |
+
 ## 8. Track 3 submission text (platform-ready)
 
 **Title** — Obsidia Router: semantic routing before inference.
@@ -141,8 +197,8 @@ expensive, and ungoverned. Most routers only choose *which* model to call.
 **Solution** — Obsidia compiles every request into a deterministic structure
 (IR), runs governance gates before any model (DENY > HOLD > CLARIFY > ALLOW),
 closes known paths locally at zero token, abstains correctly at the frontier,
-and escalates to the cheapest sufficient Fireworks model only when local
-structure is not enough — under a bounded answer contract.
+and escalates to Fireworks only when local structure is not enough — under a
+bounded answer contract with a calibrated default model.
 
 **Why AMD / Fireworks matters** — Track 1 is scored on accuracy first, then
 total Fireworks tokens ascending. That is exactly the discipline Obsidia

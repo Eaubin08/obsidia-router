@@ -104,7 +104,10 @@ has four zones: solo-safe, where calling a model is pure waste; governed,
 where a model must never be called; abstention, where the router says 'I
 don't know' instead of guessing; and Fireworks-useful, where remote inference
 earns its cost. The metric we care most about: zero false local closures.
-The router never claims an answer it cannot defend."
+The router never claims a local answer it cannot defend. One honest detail:
+on hidden judge tasks, an unresolved informational request escalates under a
+bounded contract instead of returning a placeholder — abstention is for the
+governed path, not a way to dodge the evaluator."
 
 **Governance — 60 s**
 "Push to main. Delete this folder. Deploy to production. These never reach a
