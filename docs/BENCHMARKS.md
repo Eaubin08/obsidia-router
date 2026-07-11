@@ -57,19 +57,21 @@ internal sets only.
 | Stack footprint | 1.88 MB, 0 GB embedded weights | INTERNAL_DRY | `footprint.py` |
 | Hidden judge accuracy | Unknown | OFFICIAL_HIDDEN | external |
 
-### Latency vs throughput — separate measurements
+### Latency vs throughput — separate, run-dependent measurements
 
-Local decision latency and dynamic batch throughput are **separate
-measurements and must not be converted into one another** without matching
-benchmark conditions:
+Stable claims:
 
-- **Local decision latency**: 0.211 ms average over non-Fireworks rows of the
-  18-task benchmark (all local levels).
-- **Dynamic phase throughput**: ~11,340 decisions/s measured in the dynamic
-  campaign at 0.088 ms/decision (batch conditions, level-0-heavy families).
+- **Sub-millisecond local decision latency** on the internal 18-task benchmark, for non-Fireworks local rows.
+- **More than 10,000 decisions per second** observed in the current dynamic benchmark under batch conditions.
 
-The two numbers come from different task mixes; neither is the inverse of the
-other.
+Latest committed snapshot:
+
+- **Local decision latency**: `0.122 ms` average.
+- **Dynamic campaign throughput**: `~15,034 decisions/s` at `0.067 ms/decision`.
+
+Exact performance values are machine- and run-dependent. See the latest committed `results/REPORT.md` snapshot for the measurements of the current run.
+
+Local decision latency and dynamic campaign throughput come from different task mixes and benchmark conditions. They must not be converted into one another.
 
 ## Packs
 

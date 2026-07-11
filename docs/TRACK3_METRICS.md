@@ -99,19 +99,26 @@ Exact composition — always cite it when using the total:
 
 ## 7. Speed
 
-Two separate measurements (see BENCHMARKS.md):
+Two separate, run-dependent measurements (see BENCHMARKS.md):
 
-- **Local decision latency**: `0.211 ms` average on the internal 18-task benchmark.
-- **Dynamic campaign throughput**: approximately `11,340 decisions/s`, measured
-  at `0.088 ms/decision` under dynamic batch conditions.
+- **Stable claim**: sub-millisecond local deterministic routing.
+- **Stable claim**: more than 10,000 decisions/s observed in the current
+  dynamic benchmark.
+- **Latest committed snapshot**: `0.122 ms` local decision latency,
+  `~15,034 decisions/s` at `0.067 ms/decision` (dynamic campaign).
+- **Source of truth**: `results/REPORT.md`.
 
 > These measurements come from different task mixes and benchmark conditions.
-> They must not be converted into one another.
+> They must not be converted into one another. Exact values are machine- and
+> run-dependent.
 
 - **Allowed**:
-  > A local deterministic decision takes approximately 0.2 ms in the internal benchmark, while remote inference takes seconds. When the route is known, predicting becomes slower than verifying.
+  > In the latest committed benchmark snapshot, local deterministic routing remained sub-millisecond and dynamic throughput exceeded 10,000 decisions per second.
+
+  > A local deterministic decision takes well under a millisecond in the internal benchmark, while remote inference takes seconds. When the route is known, predicting becomes slower than verifying.
 - **Forbidden**:
-  > ~~0.211 ms equals 11,340 decisions per second.~~
+  > ~~These performance values are fixed hardware-independent guarantees.~~
+  > ~~Local latency equals the inverse of dynamic throughput.~~
 
 ## 8. Cognitive value inputs
 
