@@ -341,12 +341,13 @@ def test_official_results_schema_unchanged_by_lot_e(monkeypatch):
 
 # ── 17. no network call anywhere in this module ───────────────────────────────
 
-def test_no_network_call_marker():
+def test_no_network_call_marker(monkeypatch):
     """Sanity: every test above ran with FIREWORKS_API_KEY unset or chat()
-    mocked. This test just asserts the dry-run adapter never opens a socket
-    when no key is configured."""
+    mocked. This test asserts the dry-run adapter never opens a socket when
+    no key is configured — regardless of the developer's local environment."""
+    monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
     from app.adapters import fireworks
-    import os
-    assert not os.environ.get("FIREWORKS_API_KEY", "").strip()
+    import importlib
+    importlib.reload(fireworks)  # force re-read of env after monkeypatch
     result = fireworks.chat("small", "hello")
     assert result["dry_run"] is True
