@@ -1,3 +1,8 @@
+> Historical frozen baseline - 2026-07-08.
+> This report is kept as an audit snapshot of an earlier live baseline.
+> It is superseded by the final Track 1 evidence in the root README:
+> 4265 -> 2650 -> 2438 live Fireworks tokens, 9 paid calls, 0 false local closures.
+
 # Obsidia Router — Benchmark Report
 
 > Obsidia is not compared as a larger model. Obsidia is compared as an

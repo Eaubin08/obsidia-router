@@ -162,6 +162,10 @@ A good answer is not always a long answer. It can be: *I don't know*, *X is
 missing*, *action not authorized*, *clarification required*, *HOLD*,
 *commands-only*. Zero tokens spent, frame respected.
 
+`KX108_ONLY` means the public stack exposes the kernel-authority surface
+only: the benchmark may route across Brody/Obsidure/Lean/domain surfaces,
+but it does not enable real actions, memory writes, or kernel mutation.
+
 ## Track 1 compliance
 
 | Requirement | Status |
@@ -196,6 +200,71 @@ missing*, *action not authorized*, *clarification required*, *HOLD*,
 Frontier live detail: 9 real paid Fireworks calls in the observed live run,
 mean ≈271 tokens per remote call, median 275. Level-0 rate on the internal
 benchmark: 61%.
+
+## Metric dashboard
+
+The table above gives the headline numbers. The dashboard below exposes the
+counters behind them, grouped by what they measure.
+
+### 1. Submission and runner health
+
+- Public GHCR image: `ghcr.io/eaubin08/obsidia-router:track1-0a5fc69`
+- Docker pull: public anonymous pull verified
+- Docker run: 8 practice tasks
+- Output schema: STRICT PASS
+- Missing answers: 0 · Extra answers: 0 · Empty answers: 0
+- Exit: 0
+
+**Meaning**: this proves the submitted container path works independently of
+the local repo checkout.
+
+### 2. Routing efficiency
+
+- Internal benchmark accepted routes: 18/18
+- Baseline remote calls avoided: 18/18
+- Actual remote calls on internal benchmark: 0/18
+- Level-0 rate: 61%
+- Estimated tokens saved: 5584
+- AMD practice path: 8/8, 0 Fireworks tokens, 0/8 remote
+
+**Meaning**: this shows Obsidia can close known deterministic surfaces
+before remote inference.
+
+### 3. Governance and invariant safety
+
+- Dynamic bounded invariants: 180/180
+- Dynamic dirty invariants: 160/160
+- False local closures: 0
+- Correct local-only abstentions: 10
+- World/action surfaces: no auto-action
+- V3B control flags: `real_action=false`, `memory_write=false`, `kernel_mutation=false`
+
+**Meaning**: this shows the router does not save tokens by pretending to
+know or by allowing unsafe action paths.
+
+### 4. Frontier behavior
+
+- Frontier suite size: 35 tasks
+- Local closures: 15
+- Frontier/escalation cases: 12
+- Governed paths: 8
+- Break-even complexity level: 4
+- Observed live paid Fireworks calls: 9
+
+**Meaning**: this shows the frontier suite is not a local-overfit test. It
+checks whether Obsidia knows when to stop, govern, or escalate.
+
+### 5. Live Fireworks cost compression
+
+- Original live frontier spend: 4265 tokens
+- After compact remote contract: 2650 tokens
+- After final P5D compression: 2438 tokens
+- Mean real remote call: ≈271 tokens · Median: 275 tokens
+- Route distribution: unchanged
+- False local closures: 0
+
+**Meaning**: this shows that once inference is truly needed, Obsidia still
+compresses the remaining paid calls without changing the routing behavior.
 
 ## Why the frontier matters
 

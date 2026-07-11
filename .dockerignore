@@ -14,5 +14,6 @@ results/
 .local_*/
 tmp_*/
 freeze_*/
+audit_snapshots/
 tests/
 .github/
