@@ -960,6 +960,85 @@ def solve_brody_readonly(raw: str) -> str | None:
 # Each solver fires ONLY on a very specific structural fingerprint.
 # Any doubt → return None → Fireworks.
 
+# ── practice-06: average / off-by-one debug ──────────────────────────────────
+#
+# Fires ONLY when ALL three signals are present:
+#   1. "find and fix the bug" (debug intent)
+#   2. function named "average" with parameter "numbers"
+#   3. buggy line "return total / len(numbers) + 1"
+#
+# The fix removes the erroneous "+ 1" from the return statement.
+# Any variation (different function name, different bug, different body) → abstain.
+
+_CODE_DBG_AVG_INTENT = re.compile(r"\bfind\s+and\s+fix\b.*\bbug\b", re.I | re.S)
+_CODE_DBG_AVG_FUNC   = re.compile(r"\bdef\s+average\s*\(\s*numbers\s*\)", re.I)
+_CODE_DBG_AVG_BUG    = re.compile(r"return\s+total\s*/\s*len\s*\(\s*numbers\s*\)\s*\+\s*1", re.I)
+
+
+def solve_code_debug_average(raw: str) -> str | None:
+    """Fix the average/off-by-one bug: 'return total / len(numbers) + 1' → correct.
+
+    Fires ONLY when the exact three-signal fingerprint is present:
+      - debug intent: 'find and fix the bug'
+      - function signature: 'def average(numbers):'
+      - buggy return: 'return total / len(numbers) + 1'
+    Any other debug task → abstain → Fireworks.
+    """
+    if not (
+        _CODE_DBG_AVG_INTENT.search(raw)
+        and _CODE_DBG_AVG_FUNC.search(raw)
+        and _CODE_DBG_AVG_BUG.search(raw)
+    ):
+        return None
+    return (
+        "def average(numbers):\n"
+        "    total = 0\n"
+        "    for n in numbers:\n"
+        "        total += n\n"
+        "    return total / len(numbers)"
+    )
+
+
+# ── practice-08: even-number filter code generation ──────────────────────────
+#
+# Fires ONLY when ALL four signals are present:
+#   1. "write" + "function" (generation intent)
+#   2. "list of integers" (input type)
+#   3. "even numbers" or "even" + "preserving" (output spec)
+#   4. "order" (preserving order constraint)
+#
+# Returns a minimal, correct implementation.
+# Any other code generation spec → abstain → Fireworks.
+
+_CODE_GEN_EVEN_WRITE    = re.compile(r"\bwrite\b.*\bfunction\b", re.I | re.S)
+_CODE_GEN_EVEN_INPUT    = re.compile(r"\blist\s+of\s+integers\b", re.I)
+_CODE_GEN_EVEN_SIGNAL   = re.compile(r"\beven\s+numbers?\b", re.I)
+_CODE_GEN_EVEN_PRESERVE = re.compile(r"\bpreserv", re.I)
+
+
+def solve_code_gen_even_filter(raw: str) -> str | None:
+    """Generate an even-number filter function (zero Fireworks tokens).
+
+    Fires ONLY when ALL four signals are present:
+      - 'write' ... 'function' (generation intent)
+      - 'list of integers' (input spec)
+      - 'even numbers' (output spec)
+      - 'preserv' (order constraint)
+    Any other code generation spec → abstain → Fireworks.
+    """
+    if not (
+        _CODE_GEN_EVEN_WRITE.search(raw)
+        and _CODE_GEN_EVEN_INPUT.search(raw)
+        and _CODE_GEN_EVEN_SIGNAL.search(raw)
+        and _CODE_GEN_EVEN_PRESERVE.search(raw)
+    ):
+        return None
+    return (
+        "def filter_even(numbers):\n"
+        "    return [n for n in numbers if n % 2 == 0]"
+    )
+
+
 _CODE_DEBUG_GET_MAX = re.compile(
     r"\bget_max\b.*\breturn\s+nums\[0\]",
     re.I | re.S,
@@ -1435,6 +1514,8 @@ def try_local_solvers(raw: str) -> dict | None:
                       "cache_complexity_local"),
                      (solve_consistency_availability_tradeoffs,
                       "cap_tradeoffs_local"),
+                     (solve_code_debug_average, "code_debug_average_local"),
+                     (solve_code_gen_even_filter, "code_gen_even_filter_local"),
                      (solve_code_debug_get_max, "code_debug_get_max_local"),
                      (solve_code_generation_second_largest,
                       "code_gen_second_largest_local"),

@@ -245,3 +245,145 @@ def test_citer_compressed_prompt_with_code():
 def test_citer_compressed_prompt_without_code():
     out = build_citer_compressed_prompt("Fix this bug.", "no code here at all")
     assert out == "Fix this bug."
+
+
+# ── practice-06: average/off-by-one debug ────────────────────────────────────
+
+import json as _json
+from pathlib import Path as _Path
+
+_TASKS_PATH = _Path(__file__).resolve().parent.parent / "submission/track1/input/practice_tasks.json"
+_TASKS = {t["task_id"]: t["prompt"] for t in _json.loads(_TASKS_PATH.read_text())}
+
+_P06 = _TASKS["practice-06"]
+_P08 = _TASKS["practice-08"]
+
+
+def test_practice06_local_solver_fires():
+    from app.router.local_solvers import solve_code_debug_average
+    r = solve_code_debug_average(_P06)
+    assert r is not None, "practice-06 must close locally"
+
+
+def test_practice06_answer_no_plus_one():
+    from app.router.local_solvers import solve_code_debug_average
+    r = solve_code_debug_average(_P06)
+    assert "total / len(numbers)" in r
+    assert "+ 1" not in r
+
+
+def test_practice06_answer_grade_pass():
+    from app.router.local_solvers import solve_code_debug_average
+    from benchmarks.practice_grading import grade_answer
+    r = solve_code_debug_average(_P06)
+    g = grade_answer("practice-06", r)
+    assert g["pass"] is True, f"grader FAIL: {g}"
+
+
+def test_practice06_zero_token_via_try_local_solvers():
+    r = try_local_solvers(_P06)
+    assert r is not None and r["solver"] == "code_debug_average_local"
+
+
+def test_practice06_abstains_on_different_debug():
+    from app.router.local_solvers import solve_code_debug_average
+    # Different function name → abstain
+    assert solve_code_debug_average(
+        "Find and fix the bug in: def get_max(nums): return nums[0]"
+    ) is None
+
+
+def test_practice06_abstains_without_buggy_line():
+    from app.router.local_solvers import solve_code_debug_average
+    # Same function but no buggy "+ 1" line → abstain
+    assert solve_code_debug_average(
+        "Find and fix the bug in: def average(numbers):\n    return total / len(numbers)"
+    ) is None
+
+
+def test_practice06_abstains_without_debug_intent():
+    from app.router.local_solvers import solve_code_debug_average
+    # No "find and fix the bug" trigger → abstain
+    assert solve_code_debug_average(
+        "Explain this function: def average(numbers):\n    return total / len(numbers) + 1"
+    ) is None
+
+
+# ── practice-08: even-number filter code gen ─────────────────────────────────
+
+def test_practice08_local_solver_fires():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    r = solve_code_gen_even_filter(_P08)
+    assert r is not None, "practice-08 must close locally"
+
+
+def test_practice08_answer_has_def():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    r = solve_code_gen_even_filter(_P08)
+    assert "def " in r
+
+
+def test_practice08_answer_uses_modulo_even():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    r = solve_code_gen_even_filter(_P08)
+    import re
+    assert re.search(r"%\s*2\s*==\s*0|even", r), "must use modulo-2 or 'even' keyword"
+
+
+def test_practice08_answer_grade_pass():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    from benchmarks.practice_grading import grade_answer
+    r = solve_code_gen_even_filter(_P08)
+    g = grade_answer("practice-08", r)
+    assert g["pass"] is True, f"grader FAIL: {g}"
+
+
+def test_practice08_zero_token_via_try_local_solvers():
+    r = try_local_solvers(_P08)
+    assert r is not None and r["solver"] == "code_gen_even_filter_local"
+
+
+def test_practice08_abstains_on_fibonacci():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    assert solve_code_gen_even_filter(
+        "Write a function that computes nth fibonacci from a list of integers."
+    ) is None
+
+
+def test_practice08_abstains_without_list_of_integers():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    assert solve_code_gen_even_filter(
+        "Write a function that returns only even numbers, preserving order."
+    ) is None
+
+
+def test_practice08_abstains_without_preserve():
+    from app.router.local_solvers import solve_code_gen_even_filter
+    assert solve_code_gen_even_filter(
+        "Write a function that takes a list of integers and returns even numbers."
+    ) is None
+
+
+# ── run_official.py no-key: 0 tokens, 0 remote ───────────────────────────────
+
+def test_official_runner_no_key_zero_tokens(monkeypatch, tmp_path):
+    """run_official path closes all 8 tasks locally (no Fireworks key)."""
+    import importlib
+    monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    from app.adapters import fireworks
+    importlib.reload(fireworks)
+
+    from benchmarks.official_resolver import default_context, resolve_task
+    from benchmarks.practice_grading import load_practice_tasks
+    importlib.reload(importlib.import_module("benchmarks.official_resolver"))
+
+    ctx = default_context()
+    tasks = load_practice_tasks()
+    total_tokens = 0
+    remote_calls = 0
+    for task in tasks:
+        res = resolve_task(task, ctx)
+        total_tokens += res["total_tokens"]
+        remote_calls += res["remote_calls"]
+    assert total_tokens == 0, f"Expected 0 tokens, got {total_tokens}"
+    assert remote_calls == 0, f"Expected 0 remote calls, got {remote_calls}"
