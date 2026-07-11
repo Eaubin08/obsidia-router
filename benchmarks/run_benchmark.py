@@ -61,6 +61,10 @@ from benchmarks.track1_remote_answer_contract import (  # noqa: E402
 from benchmarks.track1_escalation_guard import (  # noqa: E402
     should_escalate_clarification_to_fireworks,
 )
+from benchmarks.baseline_capture_policy import (  # noqa: E402
+    baseline_capture_max_tokens,
+    capture_policy_metadata,
+)
 from benchmarks.footprint import collect_footprint, collect_parametric_efficiency  # noqa: E402
 from benchmarks.metrics_coverage import build_metrics_coverage  # noqa: E402
 from benchmarks.imported_proof_metrics import (  # noqa: E402
@@ -680,6 +684,10 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         "Token efficiency: fewer Fireworks tokens than the direct-model baseline.",
         "Parametric efficiency: 0 GB embedded learned model weights.",
         "Structural efficiency: answers closed by IR, gates, routes and deterministic passes before model inference.",
+        "",
+        "The direct-model baseline uses the model-specific capture ceiling (model_capture_ceiling_v1).",
+        "This ceiling is separate from Obsidia's bounded remote-answer budgets.",
+        "It prevents artificial truncation of the raw-model comparison arm.",
     ]
 
     # Weight and speed measurement notes
@@ -1167,22 +1175,10 @@ def run_random_comparative_phase(
 # answer because a reasoning model exhausted the adapter default cap.
 _BASELINE_CAPTURE_POLICY = "raw_model_capture_headroom_v1"
 
-_BASELINE_CAPTURE_BUDGETS = {
-    "comparison": 850,
-    "structured_summary": 900,
-    "code_file": 1700,
-    "direct_answer": 850,
-    "clarification": 320,
-}
-
-
-def _baseline_capture_max_tokens(request: str) -> int:
-    answer_kind = build_remote_answer_contract(request)["answer_kind"]
-
-    return _BASELINE_CAPTURE_BUDGETS.get(
-        answer_kind,
-        _BASELINE_CAPTURE_BUDGETS["direct_answer"],
-    )
+# LOT G2 : _BASELINE_CAPTURE_BUDGETS remplacé par baseline_capture_policy.
+# La baseline utilise le plafond propre au modèle (pas à l'answer_kind).
+# Les budgets courts Obsidia (track1_remote_answer_contract._BUDGETS)
+# et les profils Brody-like (track1_response_profile._MAX_TOKENS) sont inchangés.
 
 
 def main() -> int:
@@ -1364,9 +1360,10 @@ def main() -> int:
         baseline_answer = None
         if live_baseline:
             # Classic-agent arm: the raw request goes straight to the model.
-            _baseline_max_tokens = _baseline_capture_max_tokens(
-                task["request"]
-            )
+            # LOT G2: plafond fondé sur le modèle (baseline_capture_policy),
+            # pas sur l'answer_kind. La baseline doit terminer sans troncature.
+            _baseline_max_tokens = baseline_capture_max_tokens(baseline_model)
+            _capture_meta = capture_policy_metadata(baseline_model)
             b = fireworks.chat(
                 baseline_model,
                 task["request"],
@@ -1399,6 +1396,8 @@ def main() -> int:
                     or b.get("model")
                     or baseline_model
                 ),
+                "capture_policy_version": _capture_meta["capture_policy_version"],
+                "capture_limit_source":   _capture_meta["capture_limit_source"],
             })
             baseline_tokens += b["total_tokens"]
             baseline_in_tok += b["prompt_tokens"]
@@ -1560,6 +1559,9 @@ def main() -> int:
         "baseline_direct_model": {
             "mode": "live" if live_baseline else "estimated",
             "model": baseline_model if live_baseline else None,
+            "capture_policy": "model_capture_ceiling_v1",
+            "capture_max_tokens": baseline_capture_max_tokens(baseline_model) if live_baseline else None,
+            "capture_model": baseline_model if live_baseline else None,
             "remote_calls": baseline_calls,
             "tokens": baseline_tokens,
             "total_latency_s": round(baseline_latency, 3) if live_baseline else None,
