@@ -44,8 +44,25 @@ def _parse_args() -> tuple[Path, Path]:
     return input_path, output_path
 
 
+
+def _triage_receipts_enabled() -> bool:
+    """Whether the audit-only metadata sidecar was requested."""
+    value = os.environ.get(
+        "OBSIDIA_TRACK1_TRIAGE_RECEIPTS",
+        "",
+    )
+
+    return value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def main() -> int:
     input_path, output_path = _parse_args()
+    write_triage_receipts = _triage_receipts_enabled()
 
     if not input_path.exists():
         print(f"ERROR: tasks file not found: {input_path}", file=sys.stderr)
@@ -59,6 +76,16 @@ def main() -> int:
         return 2
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    triage_path = (
+        output_path.parent
+        / "track1_triage_receipts.json"
+    )
+
+    # The judged directory is strict by default. Remove a stale audit
+    # sidecar before processing so even a failed run cannot leave one.
+    if not write_triage_receipts:
+        triage_path.unlink(missing_ok=True)
 
     # Canonical context: 600 s global deadline, 30 s output reserve,
     # ALLOWED_MODELS honoured (fallback ladder only when absent).
@@ -97,8 +124,12 @@ def main() -> int:
                 "latency_s": 0.0,
             }
         results.append(project_official_row(res))
-        resolutions.append({k: v for k, v in res.items()
-                            if k not in ("answer",)})
+        if write_triage_receipts:
+            resolutions.append({
+                k: v
+                for k, v in res.items()
+                if k not in ("answer",)
+            })
         tokens_total += res.get("total_tokens", 0)
         remote_calls += res.get("remote_calls", 0)
         print(f"  [{task_id}] route={res.get('route')} "
@@ -114,21 +145,28 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    # Audit-only companion (metadata, no prompt/answer content beyond the
-    # resolution fields), never read by the AMD harness.
-    triage_path = output_path.parent / "track1_triage_receipts.json"
-    triage_path.write_text(
-        json.dumps(
-            {"tasks": resolutions,
-             "summary": triage_summary(ctx.metrics.records)},
-            indent=2, ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
+    # Optional audit-only metadata sidecar. The official AMD path
+    # leaves it disabled and writes only results.json.
+    if write_triage_receipts:
+        triage_path.write_text(
+            json.dumps(
+                {
+                    "tasks": resolutions,
+                    "summary": triage_summary(
+                        ctx.metrics.records
+                    ),
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
     print()
     print(f"results    -> {output_path}")
-    print(f"triage     -> {triage_path}")
+
+    if write_triage_receipts:
+        print(f"triage     -> {triage_path}")
     print(f"tasks      : {len(results)}")
     print(f"tokens used: {tokens_total}")
     print(f"remote calls: {remote_calls}/{len(results)}")

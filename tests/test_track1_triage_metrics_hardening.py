@@ -29,6 +29,10 @@ def test_official_sidecar_is_metadata_only_and_keeps_token_breakdown(
         "ALLOWED_MODELS", "small,medium,gpt-oss-120b"
     )
     monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    monkeypatch.setenv(
+        "OBSIDIA_TRACK1_TRIAGE_RECEIPTS",
+        "1",
+    )
 
     input_path = tmp_path / "tasks.json"
     output_path = tmp_path / "results.json"
@@ -151,3 +155,74 @@ def test_docs_do_not_claim_committed_report_already_has_section():
 
     assert "currently committed report predates LOT E" in metrics
     assert "committed REPORT predates LOT E" in submission
+
+
+def test_official_default_removes_stale_triage_sidecar(
+    tmp_path,
+    monkeypatch,
+):
+    runner = _load_official_runner()
+
+    monkeypatch.setenv(
+        "ALLOWED_MODELS",
+        "small,medium,gpt-oss-120b",
+    )
+    monkeypatch.delenv(
+        "FIREWORKS_API_KEY",
+        raising=False,
+    )
+    monkeypatch.delenv(
+        "OBSIDIA_TRACK1_TRIAGE_RECEIPTS",
+        raising=False,
+    )
+
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+
+    input_dir.mkdir()
+    output_dir.mkdir()
+
+    input_path = input_dir / "tasks.json"
+    output_path = output_dir / "results.json"
+    sidecar_path = (
+        output_dir
+        / "track1_triage_receipts.json"
+    )
+
+    input_path.write_text(
+        json.dumps([
+            {
+                "task_id": "local",
+                "prompt": (
+                    "What is the capital of Australia?"
+                ),
+            },
+        ]),
+        encoding="utf-8",
+    )
+
+    sidecar_path.write_text(
+        json.dumps({"stale": True}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_official.py",
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert runner.main() == 0
+    assert output_path.exists()
+    assert not sidecar_path.exists()
+
+    assert {
+        item.name
+        for item in output_dir.iterdir()
+    } == {"results.json"}

@@ -127,11 +127,20 @@ per-answer cap); the clamp cannot be raised by environment or caller.
 
 ### Adaptive triage receipts (audit-only, never part of the judged schema)
 
-`scripts/run_official.py` writes a companion file next to `results.json`:
-`track1_triage_receipts.json`. It is never read by the AMD harness (which
-only opens the exact `--output` path) and never changes the required
-schema above. Its purpose is to let a reviewer audit *why* a given model
-was called, without touching the strict `{task_id, answer}` contract.
+By default, `scripts/run_official.py` writes only `results.json`.
+The official Docker path therefore leaves `/output` with exactly the judged
+artifact and no receipt or report file.
+
+For an explicit local audit run, set:
+
+```text
+OBSIDIA_TRACK1_TRIAGE_RECEIPTS=1
+
+This enables the metadata-only companion
+track1_triage_receipts.json. The AMD harness never reads this sidecar,
+and it never changes the strict {task_id, answer} payload. When the
+variable is absent or false, the runner also removes any stale sidecar
+left by an earlier audit run.
 
 The sidecar is a metadata-only projection. It never stores the request text,
 generated answer, memory content, or system-prompt content; only lengths,

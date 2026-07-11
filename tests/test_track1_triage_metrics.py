@@ -304,6 +304,10 @@ _SPEC.loader.exec_module(run_official)
 def test_official_results_schema_unchanged_by_lot_e(monkeypatch):
     monkeypatch.setenv("ALLOWED_MODELS", "small,medium,gpt-oss-120b")
     monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    monkeypatch.delenv(
+        "OBSIDIA_TRACK1_TRIAGE_RECEIPTS",
+        raising=False,
+    )
     with tempfile.TemporaryDirectory() as tmp_str:
         tmp = Path(tmp_str)
         inp = tmp / "tasks.json"
@@ -323,11 +327,16 @@ def test_official_results_schema_unchanged_by_lot_e(monkeypatch):
         assert isinstance(results, list)
         for row in results:
             assert set(row.keys()) == {"task_id", "answer"}
-        # LOT E companion file exists, separate from the required schema
+        # The official path writes only the judged artifact.
         triage_path = tmp / "track1_triage_receipts.json"
-        assert triage_path.exists()
-        triage = json.loads(triage_path.read_text(encoding="utf-8"))
-        assert "summary" in triage and "tasks" in triage
+        assert not triage_path.exists()
+        assert {
+            item.name
+            for item in tmp.iterdir()
+        } == {
+            "tasks.json",
+            "results.json",
+        }
 
 
 # ── 17. no network call anywhere in this module ───────────────────────────────
