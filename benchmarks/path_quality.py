@@ -61,6 +61,9 @@ def quality_axes(report: dict[str, Any]) -> dict[str, Any]:
 
     route_matches = sum(1 for row in rows if row.get("expected_route") == _route(row))
     route_correct_true = sum(1 for row in rows if row.get("route_correct") is True)
+    exact_route_matches = sum(1 for row in rows if row.get("exact_route_match") is True)
+    accepted_route_matches = sum(1 for row in rows if row.get("accepted_route_correct") is True)
+    alternative_route_uses = sum(1 for row in rows if row.get("alternative_route_used") is True)
 
     level0 = [row for row in rows if row.get("level") == 0]
     level1_2 = [row for row in rows if row.get("level") in (1, 2)]
@@ -89,7 +92,10 @@ def quality_axes(report: dict[str, Any]) -> dict[str, Any]:
         "route_quality": {
             "tasks": total,
             "route_matches": route_matches,
+            "exact_route_matches": exact_route_matches,
             "route_correct_true": route_correct_true,
+            "accepted_route_matches": accepted_route_matches,
+            "alternative_route_uses": alternative_route_uses,
             "route_accuracy": report.get("route_accuracy"),
         },
         "path_quality": {

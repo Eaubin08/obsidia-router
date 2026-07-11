@@ -56,6 +56,7 @@ from benchmarks.track1_response_profile import (  # noqa: E402
 )
 from benchmarks.track1_remote_answer_contract import (  # noqa: E402
     build_remote_answer_contract,
+    classify_answer_kind,
 )
 from benchmarks.track1_escalation_guard import (  # noqa: E402
     should_escalate_clarification_to_fireworks,
@@ -407,8 +408,9 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         "",
         "### Path quality",
         "",
-        f"- Exact route match: **{rq.get('route_matches')}/{rq.get('tasks')}**",
-        f"- Accepted route accuracy (`route_correct=true`): **{rq.get('route_correct_true')}/{rq.get('tasks')}**",
+        f"- Exact route match: **{rq.get('exact_route_matches', rq.get('route_matches'))}/{rq.get('tasks')}**",
+        f"- Accepted route accuracy (`route_correct=true`): **{rq.get('accepted_route_matches', rq.get('route_correct_true'))}/{rq.get('tasks')}**",
+        f"- Alternative accepted routes used: **{rq.get('alternative_route_uses', 0)}**",
         f"- Level-0 model leaks: **{pq.get('level0_model_leaks')}** / {pq.get('level0_tasks')} level-0 tasks",
         f"- HOLD / DENY / CLARIFY model leaks: **{pq.get('hold_deny_clarify_model_leaks')}** / {pq.get('hold_deny_clarify_tasks')} tasks",
         f"- World-action model leaks: **{pq.get('world_action_model_leaks')}** / {pq.get('world_action_tasks')} tasks",
@@ -1242,6 +1244,7 @@ def main() -> int:
     baseline_usage_count = 0  # calls with real usage (not dry-run)
     baseline_errors: list[str] = []
     governance_table: list[dict] = []
+    _baseline_telemetry: list[dict] = []
 
     for task in tasks:
         t0 = time.perf_counter()
@@ -1351,6 +1354,12 @@ def main() -> int:
             ok = routed_as == task.get("expected_route", routed_as)
         correct += ok
         baseline_calls += 1
+        _task_expected = task.get("expected_route")
+        _task_allowed_routes = task.get("allowed_routes")
+        _exact_route_match = (
+            (routed_as == _task_expected) if _task_expected is not None else None
+        )
+        _alt_route_used = (_exact_route_match is False) and bool(ok)
 
         baseline_answer = None
         if live_baseline:
@@ -1363,6 +1372,34 @@ def main() -> int:
                 task["request"],
                 max_tokens=_baseline_max_tokens,
             )
+            _bl_ak = classify_answer_kind(task["request"])
+            _ft_chars = 0
+            if b.get("final_content_present"):
+                _bl_txt = b.get("text", "")
+                if isinstance(_bl_txt, str) and not _bl_txt.startswith("[error]"):
+                    _ft_chars = len(_bl_txt)
+            _baseline_telemetry.append({
+                "task_id": task["id"],
+                "answer_kind": _bl_ak,
+                "requested_max_tokens": _baseline_max_tokens,
+                "prompt_tokens": b.get("prompt_tokens", 0),
+                "completion_tokens": b.get("completion_tokens", 0),
+                "total_tokens": b.get("total_tokens", 0),
+                "finish_reason": b.get("finish_reason"),
+                "final_content_present": b.get("final_content_present"),
+                "reasoning_content_present": b.get("reasoning_content_present"),
+                "truncated": b.get("truncated", False),
+                "error": b.get("error"),
+                "final_text_chars": _ft_chars,
+                "latency_s": b.get("latency_s", 0.0),
+                "usage_available": b.get("total_tokens", 0) > 0,
+                "selected_model": baseline_model,
+                "actual_model_used": (
+                    b.get("actual_model_used")
+                    or b.get("model")
+                    or baseline_model
+                ),
+            })
             baseline_tokens += b["total_tokens"]
             baseline_in_tok += b["prompt_tokens"]
             baseline_out_tok += b["completion_tokens"]
@@ -1397,8 +1434,12 @@ def main() -> int:
             "id": task["id"],
             "request": task["request"],
             "expected_route": task.get("expected_route"),
+            "allowed_routes": _task_allowed_routes,
             "actual_route": decision["route"],
             "route_correct": ok,
+            "exact_route_match": _exact_route_match,
+            "accepted_route_correct": bool(ok),
+            "alternative_route_used": _alt_route_used,
             "intent_type": ir["intent_type"],
             "target_layer": ir["target_layer"],
             "action_type": ir["action_type"],
@@ -1524,6 +1565,19 @@ def main() -> int:
             "total_latency_s": round(baseline_latency, 3) if live_baseline else None,
             "cost_usd": _cost_usd(baseline_in_tok, baseline_out_tok) if live_baseline else None,
             "errors": baseline_errors,
+            "error_count": len(baseline_errors),
+            "truncated_completion_count": sum(
+                1 for e in baseline_errors if "truncated_completion" in e
+            ),
+            "complete_response_count": sum(
+                1 for row in _baseline_telemetry if not row.get("error")
+            ),
+            "responses_with_reasoning_count": sum(
+                1 for bt in _baseline_telemetry if bt.get("reasoning_content_present")
+            ),
+            "responses_with_final_content_count": sum(
+                1 for bt in _baseline_telemetry if bt.get("final_content_present")
+            ),
         },
         "governance": {
             "governed_tasks": len(governance_table),
@@ -1551,6 +1605,22 @@ def main() -> int:
                 "governed_tasks": len(governance_table),
                 "request_ids_count": 0,
                 "usage_available": baseline_usage_count,
+                "estimated_tokens_saved": summary.get("estimated_tokens_saved", 0),
+                "estimated_tokens_saved_source": "estimate_tokens_function",
+                "measured_live_tokens_saved": (
+                    baseline_tokens - summary.get("fireworks_tokens", 0)
+                ),
+                "measured_live_tokens_saved_rate": round(
+                    (baseline_tokens - summary.get("fireworks_tokens", 0))
+                    / baseline_tokens,
+                    4,
+                ) if baseline_tokens else 0.0,
+                "measured_live_tokens_available": baseline_usage_count,
+                "measurement_note": (
+                    "measured_live_tokens_saved includes tokens from truncated "
+                    "completions. Token counts reflect actual API spend, not "
+                    "complete-response quality."
+                ),
                 "notes": [
                     "baseline measured live with --live-baseline",
                     "token counts may vary slightly across live runs",
@@ -1585,6 +1655,20 @@ def main() -> int:
         "random_dynamic": random_dynamic,
         "random_comparative": random_comparative,
         "tasks": rows,
+        "baseline_task_telemetry": {
+            "enabled": live_baseline,
+            "mode": "live" if live_baseline else "dry_run_not_measured",
+            "rows": _baseline_telemetry,
+            "row_count": len(_baseline_telemetry),
+            "schema": "metadata_only_v0",
+            "note": (
+                "Per-task baseline measurement. "
+                "No prompt/text/answer/reasoning stored. "
+                "Includes truncated completion metadata."
+                if live_baseline
+                else "Run with --live-baseline to enable per-task baseline measurement."
+            ),
+        },
     }
     stack_v3b_result = None
     brody_autostart_result = None
@@ -1740,7 +1824,9 @@ def main() -> int:
     sp = q["speed_profile"]
     print()
     print("QUALITY AXES (path / speed / escalation — no global score)")
-    print(f"  exact route match        : {rq['route_matches']}/{rq['tasks']}")
+    print(f"  exact route match        : {rq.get('exact_route_matches', rq['route_matches'])}/{rq['tasks']}")
+    print(f"  alternative routes used  : {rq.get('alternative_route_uses', 0)}/{rq['tasks']}")
+    print(f"  accepted route accuracy  : {rq.get('accepted_route_matches', rq['route_correct_true'])}/{rq['tasks']}")
     print(f"  level0_model_leaks       : {pq['level0_model_leaks']}")
     print(f"  hold/deny/clarify leaks  : {pq['hold_deny_clarify_model_leaks']}")
     print(f"  world_action leaks       : {pq['world_action_model_leaks']}")

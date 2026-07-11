@@ -304,9 +304,11 @@ def main() -> int:
     frontier = {
         "amd_practice_tasks": n,
         "verified_local_closure_count": local_pass_count,
-        "verified_local_closure_rate": (
+        "verified_local_closure_rate": round(local_pass_count / n, 4),
+        "verified_local_closure_rate_label": (
             f"{local_pass_count}/{n} = {local_pass_count / n:.1%} "
-            "(zero-token AND grade=PASS)"),
+            "(zero-token AND grade=PASS)"
+        ),
         "remote_actual_count": remote_count,
         "remote_actual_rate": f"{remote_count}/{n} = {remote_count / n:.1%}",
         "total_tokens_amd_practice": total_tokens,
@@ -329,7 +331,7 @@ def main() -> int:
 
     print()
     print("-- Zero-token frontier (AMD practice 8 categories) -----------------")
-    print(f"  verified_local_closure_rate : {frontier['verified_local_closure_rate']}")
+    print(f"  verified_local_closure_rate : {frontier['verified_local_closure_rate_label']}")
     print(f"  remote_actual_rate          : {frontier['remote_actual_rate']}")
     print(f"  total_tokens_amd            : {total_tokens}")
     print(f"  api_available               : {api_available}")

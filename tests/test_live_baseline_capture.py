@@ -150,3 +150,74 @@ def test_quality_labels_distinguish_exact_and_accepted_routes():
         "Expected Fireworks route / actual remote calls:"
         in source
     )
+    assert "Alternative accepted routes used:" in source
+
+
+def test_baseline_telemetry_field_present_in_report_assembly():
+    source = Path(
+        "benchmarks/run_benchmark.py"
+    ).read_text(encoding="utf-8")
+
+    assert "baseline_task_telemetry" in source
+    assert "metadata_only_v0" in source
+
+
+def test_baseline_telemetry_forbidden_keys_not_stored():
+    source = Path(
+        "benchmarks/run_benchmark.py"
+    ).read_text(encoding="utf-8")
+
+    # No forbidden content key is assigned in telemetry dict construction
+    telemetry_section = source[
+        source.index("_baseline_telemetry.append"):
+        source.index("baseline_tokens += b[\"total_tokens\"]")
+    ]
+    for forbidden in ("\"request\"", "\"prompt\"", "\"answer\"", "\"text\"",
+                      "\"content\"", "\"reasoning_content\"", "\"memory_entry\""):
+        assert forbidden not in telemetry_section, (
+            f"Forbidden key {forbidden} found in telemetry construction"
+        )
+
+
+def test_route_fields_added_to_task_rows():
+    source = Path(
+        "benchmarks/run_benchmark.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"exact_route_match"' in source
+    assert '"accepted_route_correct"' in source
+    assert '"alternative_route_used"' in source
+    assert '"allowed_routes"' in source
+
+
+def test_baseline_error_summary_in_baseline_direct_model():
+    source = Path(
+        "benchmarks/run_benchmark.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"error_count"' in source
+    assert '"truncated_completion_count"' in source
+    assert '"complete_response_count"' in source
+    assert '"responses_with_reasoning_count"' in source
+    assert '"responses_with_final_content_count"' in source
+
+
+def test_estimated_and_measured_token_fields_separated():
+    source = Path(
+        "benchmarks/run_benchmark.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"estimated_tokens_saved_source"' in source
+    assert '"measured_live_tokens_saved"' in source
+    assert '"measured_live_tokens_available"' in source
+
+
+def test_verified_local_closure_rate_is_float_in_answer_accuracy():
+    from benchmarks.answer_accuracy import main as _aa_main  # noqa: F401 — import only
+    import inspect
+    source = Path(
+        "benchmarks/answer_accuracy.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"verified_local_closure_rate": round(' in source
+    assert '"verified_local_closure_rate_label"' in source

@@ -125,13 +125,41 @@ def _model_avoidance(report: dict) -> dict:
     fw_actual = eq.get("fireworks_actual", fw_needed)
     fw_allow_rate = _pct(fw_on_allow, fw_actual) if fw_actual else 1.0
 
+    live_bl = report.get("live_baseline", {})
+    _lb_enabled = live_bl.get("enabled", False)
+    measured_saved = (
+        live_bl.get("measured_live_tokens_saved")
+        if _lb_enabled else None
+    )
+    measured_rate = (
+        live_bl.get("measured_live_tokens_saved_rate")
+        if _lb_enabled else None
+    )
+    measured_avail = (
+        live_bl.get("measured_live_tokens_available")
+        if _lb_enabled else None
+    )
+
     return {
         "remote_calls_avoided": avoided,
         "fireworks_call_rate": fw_call_rate,
         "zero_fireworks_rate": zero_fw_rate,
         "tokens_saved_vs_baseline": est_saved,
+        "estimated_tokens_saved_source": "estimate_tokens_function",
         "tokens_saved_rate": saved_rate,
         "token_saving_ratio": saving_ratio,
+        "measured_live_tokens_saved": (
+            measured_saved if measured_saved is not None
+            else _nm("run with --live-baseline to measure")
+        ),
+        "measured_live_tokens_saved_rate": (
+            measured_rate if measured_rate is not None
+            else _nm("run with --live-baseline to measure")
+        ),
+        "measured_live_tokens_available": (
+            measured_avail if measured_avail is not None
+            else _nm("run with --live-baseline to measure", "--live-baseline flag")
+        ),
         "unnecessary_fireworks_calls": eq.get("unnecessary_fireworks_calls", 0),
         "fireworks_only_on_allow_rate": fw_allow_rate,
         "level0_model_leaks": pq.get("level0_model_leaks", 0),
