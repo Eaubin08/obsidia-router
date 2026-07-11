@@ -17,27 +17,21 @@ from __future__ import annotations
 from app.gates.gates import evaluate as evaluate_gates
 from app.ir.unified_ir import build_ir
 from app.router.local_solvers import try_local_solvers
+from app.router.model_triage import select_model_for_request
 from app.router.semantic_topics import route_topic
 
-# Fireworks serverless model ladder, cheapest first (verified against the
-# live /v1/models catalog). The catalog moves fast: override via
-# ALLOWED_MODELS (comma-separated) to match the current library or the
-# scoring harness allowlist, ordered cheapest first.
+# Fallback ladder used only when ALLOWED_MODELS is not provided (see
+# app.adapters.fireworks.allowed_models(), the single parsing authority).
+# Order preserved as configured here; it is NOT independently verified as
+# cost-ascending against the live Fireworks catalog. Call this a calibrated
+# fallback ladder, not a proven "cheapest first" ordering — the harness's
+# ALLOWED_MODELS (ordered by the scoring harness itself) is the authority
+# whenever it is provided.
 DEFAULT_MODEL_LADDER = [
     "accounts/fireworks/models/gpt-oss-120b",
     "accounts/fireworks/models/glm-5p1",
     "accounts/fireworks/models/deepseek-v4-pro",
 ]
-
-
-def _complexity_score(ir: dict, raw: str) -> int:
-    """Deterministic proxy for task complexity. Picks the ladder rung."""
-    score = 0
-    if ir["intent_type"] == "code_request":
-        score += 1
-    if len(raw) > 400:
-        score += 1
-    return min(score, 2)
 
 
 def decide(raw: str, memory_index: dict | None = None,
@@ -139,8 +133,13 @@ def decide(raw: str, memory_index: dict | None = None,
         return decision
 
     # --- Level 3: justified remote escalation ---------------------------------
-    rung = _complexity_score(ir, raw)
-    rung = min(rung, len(ladder) - 1)
-    decision.update(level=3, route="fireworks", model=ladder[rung],
-                    reason=f"remote inference required; cheapest sufficient rung {rung}")
+    # Single triage authority (LOT D): the model actually sent to
+    # fireworks.chat() is decided here, once, from the resolved ladder.
+    # No downstream caller (cli.py, run_official.py, run_benchmark.py) may
+    # override this choice with a contract-preferred model.
+    _answer_kind = "code_file" if ir["intent_type"] == "code_request" else None
+    _selection = select_model_for_request(raw, ladder, answer_kind=_answer_kind)
+    decision.update(level=3, route="fireworks", model=_selection["selected_model"],
+                    reason=f"remote inference required; {_selection['selection_reason']}")
+    decision["selected_rung"] = _selection["selected_rung"]
     return decision

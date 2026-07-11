@@ -70,8 +70,11 @@ def run_obsidia_router(task: dict) -> dict:
     if route == "fireworks" and API_LIVE:
         from benchmarks.track1_remote_answer_contract import build_remote_answer_contract
         contract = build_remote_answer_contract(task["prompt"])
+        # LOT D parity: the model actually called must be decide()'s own
+        # central-triage selection (decision["model"]), never the
+        # contract's informative model_preference field.
         fw = fireworks.chat(
-            contract["model_preference"],
+            decision["model"],
             task["prompt"],
             max_tokens=contract["max_tokens"],
             system=contract["contract_prompt"],

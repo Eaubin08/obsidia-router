@@ -113,9 +113,13 @@ arbitrary code.
 **REMOTE INFERENCE — escalate only when the problem remains genuinely
 open.** Evidence (MEASURED): FIREWORKS_USEFUL = 9 in the frontier evidence;
 every remote call goes through the bounded remote answer contract; live
-sample ≈389 tokens with 1/5 remote calls. Honest boundary: the *when to
-infer* decision is demonstrated; the adaptive *which model size* triage is
-still under technical repair and is **not** claimed as closed.
+sample ≈389 tokens with 1/5 remote calls. Both boundaries are now
+implemented: *when to infer* (frontier evidence above) and *which model
+size* — a single triage authority (`app.router.model_triage`) picks the
+smallest sufficient rung of the harness-provided `ALLOWED_MODELS` order for
+every escalation path (router, brody escalation, clarification escalation).
+Honest caveat: the ladder's cost order is stated by the harness, not
+independently verified against the live Fireworks catalog.
 
 ## 5. Frontier story
 

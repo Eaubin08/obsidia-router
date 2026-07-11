@@ -17,7 +17,11 @@ def test_code_file_contract_model_preference_is_gpt_oss():
     assert c["answer_kind"] == "code_file"
 
 
-# ── 2. run_one — actual_model_used avec profil ────────────────────────────────
+# ── 2. run_one — actual_model_used comes from the router, never the contract ──
+# LOT D: the remote answer contract's "model" field is informative telemetry
+# only. run_one() must always use decide()'s own central-triage selection
+# (decision["model"]), even when the contract's preferred model is present
+# in the allowed ladder and would otherwise "win" under the old doctrine.
 
 _MOCK_RESULT = {
     "text": "def rate_limit(): pass",
@@ -31,10 +35,13 @@ _MOCK_RESULT = {
 }
 
 _GPT_OSS = "accounts/fireworks/models/gpt-oss-120b"
+_GLM = "accounts/fireworks/models/glm-5p1"
 _DEEPSEEK = "accounts/fireworks/models/deepseek-v4-pro"
 
 
-def test_run_one_stores_actual_model_used_when_profile_given():
+def test_run_one_ignores_contract_model_field():
+    """track1_profile['model'] (gpt-oss) must not override decision['model'],
+    even with no ALLOWED_MODELS set (default ladder = [gpt-oss, glm, deepseek])."""
     from app.cli import run_one
     from app.metrics.collector import MetricsCollector
 
@@ -56,7 +63,38 @@ def test_run_one_stores_actual_model_used_when_profile_given():
             )
 
     assert decision["route"] == "fireworks"
-    assert decision["actual_model_used"] == _GPT_OSS
+    assert decision["actual_model_used"] == decision["model"]
+
+
+def test_run_one_does_not_prefer_contract_model_even_when_available():
+    """gpt-oss is both present in the ladder and the contract's stated
+    preference, yet the router selects by rung (index 1: medium, code
+    request, not long/complex), not by contract override."""
+    from app.cli import run_one
+    from app.metrics.collector import MetricsCollector
+
+    ladder = [_GPT_OSS, _GLM, _DEEPSEEK]
+    profile = {
+        "profile": "CODE_FILE",
+        "max_tokens": 750,
+        "system": "Answer with code only.",
+        "model": _GPT_OSS,
+    }
+    metrics = MetricsCollector()
+
+    with patch("app.adapters.fireworks.chat", return_value=_MOCK_RESULT):
+        with patch("app.adapters.fireworks.allowed_models", return_value=ladder):
+            decision = run_one(
+                "implement a python rate limiter with tests",
+                metrics,
+                {},
+                track1_profile=profile,
+            )
+
+    assert decision["route"] == "fireworks"
+    assert decision["actual_model_used"] == decision["model"]
+    assert decision["actual_model_used"] == _GLM
+    assert decision["actual_model_used"] != _GPT_OSS
 
 
 # ── 3. run_one — fallback quand contract model absent de l'allowed list ───────

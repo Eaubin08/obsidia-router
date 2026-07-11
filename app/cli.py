@@ -44,26 +44,21 @@ def run_one(raw: str, metrics: MetricsCollector, memory_index: dict,
     output_text = None
 
     if decision["route"] == "fireworks":
+        # LOT D: the model is decided once, centrally, by decide() (see
+        # app.router.model_triage.select_model_for_request). track1_profile
+        # only supplies max_tokens/system; its "model" field (the contract's
+        # calibrated default) is informative telemetry only and must never
+        # override the router's selection.
+        _fw_model = decision["model"]
+        decision["actual_model_used"] = _fw_model
         if track1_profile:
-            _calibrated_default = "accounts/fireworks/models/gpt-oss-120b"
-            _contract_model = track1_profile.get("model")
-            _allowed = fireworks.allowed_models()
-            if _contract_model and (
-                (_allowed and _contract_model in _allowed)
-                or (not _allowed and _contract_model == _calibrated_default)
-            ):
-                _fw_model = _contract_model
-            else:
-                _fw_model = decision["model"]
-            decision["actual_model_used"] = _fw_model
             result = fireworks.chat(
                 _fw_model, raw,
                 max_tokens=track1_profile["max_tokens"],
                 system=track1_profile["system"],
             )
         else:
-            decision["actual_model_used"] = decision["model"]
-            result = fireworks.chat(decision["model"], raw)
+            result = fireworks.chat(_fw_model, raw)
         output_text = result["text"]
     elif decision["route"] == "local_solver":
         output_text = decision["solver_answer"]

@@ -30,6 +30,7 @@ from app.adapters import fireworks
 from app.cli import load_memory_index, run_one
 from app.metrics.collector import MetricsCollector
 from app.router.decision import DEFAULT_MODEL_LADDER
+from app.router.model_triage import select_model_for_request
 from benchmarks.track1_remote_answer_contract import build_remote_answer_contract
 from benchmarks.track1_runner import normalize_task, track1_answer
 from benchmarks.track1_escalation_guard import (
@@ -48,14 +49,18 @@ def _parse_args() -> tuple[Path, Path]:
     return input_path, output_path
 
 
-def _build_track1_profile(request: str, task_id: str) -> dict:
+def _build_track1_profile(request: str, task_id: str, allowed_models: list[str]) -> dict:
     """Build the bounded Fireworks contract identical to the official benchmark path.
 
     Mirrors run_benchmark.py lines 1165-1176:
       _contract = build_remote_answer_contract(request)
       _t1_profile = {max_tokens, system, model, remote_answer_contract}
+
+    "model" is informative telemetry only (LOT D) — the model actually
+    called is decided centrally by select_model_for_request() inside
+    decide() / the escalation block below.
     """
-    contract = build_remote_answer_contract(request)
+    contract = build_remote_answer_contract(request, allowed_models=allowed_models)
     return {
         "max_tokens": contract["max_tokens"],
         "system":     contract["contract_prompt"],
@@ -112,7 +117,7 @@ def main() -> int:
             # Mirrors the official benchmark: all hidden AMD tasks default to
             # "fireworks" when expected_route is absent (task.get("expected_route","fireworks")=="fireworks").
             # The profile is silently ignored by run_one() for locally-closed routes.
-            t1_profile = _build_track1_profile(request, task_id)
+            t1_profile = _build_track1_profile(request, task_id, ladder)
 
             decision = run_one(request, metrics, memory_index, ladder,
                                track1_profile=t1_profile)
@@ -128,8 +133,13 @@ def main() -> int:
                     task, request, decision)
             )
             if _needs_escalation:
-                _c = build_remote_answer_contract(request)
-                _model = _c["model_preference"] or (ladder[0] if ladder else DEFAULT_MODEL_LADDER[0])
+                _c = build_remote_answer_contract(request, allowed_models=ladder)
+                # LOT D: same single triage authority as decide()'s own
+                # level-3 escalation — the contract's model_preference is
+                # informative only and never selects the call target here.
+                _model = select_model_for_request(
+                    request, ladder, answer_kind=_c["answer_kind"],
+                )["selected_model"]
                 _fw = fireworks.chat(
                     _model, request,
                     max_tokens=_c["max_tokens"],

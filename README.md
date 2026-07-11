@@ -163,7 +163,7 @@ demo run from the repo, not from the container.
 |---|---|---|
 | `FIREWORKS_API_KEY` | for live calls | Without it, level-3 decisions run in dry-run mode (route + token estimate, no network). |
 | `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. Scoring harnesses may override. |
-| `ALLOWED_MODELS` | no | Comma-separated model ladder, cheapest first. Overrides the default gpt-oss-120b → GLM 5.1 → DeepSeek V4 Pro ladder (check the current serverless catalog via `GET /v1/models`). |
+| `ALLOWED_MODELS` | no | Ordered allowlist; the router picks the smallest sufficient rung of *this exact order* — provide it cheapest first. Overrides the default calibrated fallback ladder (gpt-oss-120b, GLM 5.1, DeepSeek V4 Pro — order not independently cost-verified; check the current serverless catalog via `GET /v1/models`). |
 
 ## Metrics
 

@@ -39,6 +39,7 @@ from app.adapters.fireworks import estimate_tokens  # noqa: E402
 from app.cli import load_memory_index, run_one  # noqa: E402
 from app.metrics.collector import MetricsCollector  # noqa: E402
 from app.router.decision import DEFAULT_MODEL_LADDER, decide  # noqa: E402
+from app.router.model_triage import select_model_for_request  # noqa: E402
 from benchmarks.dynamic_cases import FAMILIES, SEED, check_case, generate_all  # noqa: E402
 from benchmarks.dynamic_cases_v2 import FAMILIES_V2, SEED_V2, check_case_v2, generate_all_v2  # noqa: E402
 from benchmarks.governance import GOVERNED_ROUTES, check_baseline_answer  # noqa: E402
@@ -1173,7 +1174,7 @@ def main() -> int:
             _prof = classify_expected_profile(
                 task["id"], task["request"], task.get("expected_route") or "fireworks"
             )
-            _contract = build_remote_answer_contract(task["request"])
+            _contract = build_remote_answer_contract(task["request"], allowed_models=ladder)
             _t1_profile = {
                 "profile": _prof,
                 "max_tokens": _contract["max_tokens"],
@@ -1203,14 +1204,20 @@ def main() -> int:
                 or should_escalate_clarification_to_fireworks(
                     task, task["request"], decision)))
         if _needs_answer_escalation:
-            _c = build_remote_answer_contract(task["request"])
+            _c = build_remote_answer_contract(task["request"], allowed_models=ladder)
+            # LOT D: same single triage authority as decide()'s own
+            # level-3 escalation — the contract's model_preference is
+            # informative only and never selects the call target here.
+            _escalation_model = select_model_for_request(
+                task["request"], ladder, answer_kind=_c["answer_kind"],
+            )["selected_model"]
             _fw = fireworks.chat(
-                _c["model_preference"] or (ladder[0] if ladder else baseline_model),
+                _escalation_model,
                 task["request"], max_tokens=_c["max_tokens"],
                 system=_c["contract_prompt"])
             decision.update(route="fireworks", level=3,
-                            model=_c["model_preference"],
-                            actual_model_used=_c["model_preference"],
+                            model=_escalation_model,
+                            actual_model_used=_escalation_model,
                             output=_fw["text"])
             if metrics.records:
                 metrics.records[-1]["fireworks_tokens"] = _fw.get("total_tokens", 0)
