@@ -13,6 +13,7 @@ No decision authority: solvers produce answers, never verdicts.
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation
 
 from app.router.fact_resolver import solve_fact
 
@@ -264,6 +265,185 @@ def solve_math_multistep(raw: str) -> str | None:
 
 # ── Simple math (arithmetic / percentages) ────────────────────────────────────
 
+
+
+# ── Generic quantity/time rate solver ────────────────────────────────────────
+
+_RATE_TRIGGER = re.compile(
+    r"\b(?:average\s+speed|speed|rate|throughput|flow|"
+    r"\bper\s+(?:hour|minute|second))\b",
+    re.I,
+)
+
+_RATE_QUANTITY_TIME = re.compile(
+    r"\b(?:travels?|covers?|moves?|drives?|flies?|runs?|cycles?|"
+    r"produces?|processes?|handles?|pumps?|uses?)\s+"
+    r"(?P<amount>\d+(?:\.\d+)?)\s+"
+    r"(?P<unit>"
+    r"kilometers?|kilometres?|km|"
+    r"miles?|mi|"
+    r"meters?|metres?|"
+    r"liters?|litres?|"
+    r"units?|items?|requests?"
+    r")\s+"
+    r"(?:in|over|during)\s+"
+    r"(?P<duration>\d+(?:\.\d+)?)\s+"
+    r"(?P<time>"
+    r"hours?|hrs?|hr|"
+    r"minutes?|mins?|min|"
+    r"seconds?|secs?|sec"
+    r")\b",
+    re.I,
+)
+
+_RATE_REQUESTED_UNIT = re.compile(
+    r"\b(?P<unit>"
+    r"kilometers?|kilometres?|km|"
+    r"miles?|mi|"
+    r"meters?|metres?|"
+    r"liters?|litres?|"
+    r"units?|items?|requests?"
+    r")\s+per\s+"
+    r"(?P<time>hours?|hrs?|hr|minutes?|mins?|min|seconds?|secs?|sec)\b",
+    re.I,
+)
+
+_RATE_UNIT_ALIASES = {
+    "kilometer": "kilometer",
+    "kilometers": "kilometer",
+    "kilometre": "kilometer",
+    "kilometres": "kilometer",
+    "km": "kilometer",
+    "mile": "mile",
+    "miles": "mile",
+    "mi": "mile",
+    "meter": "meter",
+    "meters": "meter",
+    "metre": "meter",
+    "metres": "meter",
+    "liter": "liter",
+    "liters": "liter",
+    "litre": "liter",
+    "litres": "liter",
+    "unit": "unit",
+    "units": "unit",
+    "item": "item",
+    "items": "item",
+    "request": "request",
+    "requests": "request",
+}
+
+_RATE_UNIT_DISPLAY = {
+    "kilometer": "kilometers",
+    "mile": "miles",
+    "meter": "meters",
+    "liter": "liters",
+    "unit": "units",
+    "item": "items",
+    "request": "requests",
+}
+
+_RATE_TIME_ALIASES = {
+    "hour": "hour",
+    "hours": "hour",
+    "hr": "hour",
+    "hrs": "hour",
+    "minute": "minute",
+    "minutes": "minute",
+    "min": "minute",
+    "mins": "minute",
+    "second": "second",
+    "seconds": "second",
+    "sec": "second",
+    "secs": "second",
+}
+
+_RATE_TIME_SECONDS = {
+    "hour": Decimal("3600"),
+    "minute": Decimal("60"),
+    "second": Decimal("1"),
+}
+
+
+def _format_decimal(value: Decimal) -> str:
+    if not value.is_finite():
+        raise ValueError("non-finite decimal")
+    text = format(value.normalize(), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def solve_rate(raw: str) -> str | None:
+    """Solve a bounded quantity-per-time problem.
+
+    Supported family:
+      amount of a quantity in a duration -> quantity per requested time unit.
+
+    Examples include distance/speed, production rate, flow and throughput.
+    The solver abstains on incompatible units, missing rate intent, zero
+    duration, unsupported conversions or ambiguous multiple measurements.
+    """
+    if not _RATE_TRIGGER.search(raw):
+        return None
+
+    matches = list(_RATE_QUANTITY_TIME.finditer(raw))
+    if len(matches) != 1:
+        return None
+
+    match = matches[0]
+    requested = _RATE_REQUESTED_UNIT.search(raw)
+
+    input_unit = _RATE_UNIT_ALIASES.get(match.group("unit").lower())
+    input_time = _RATE_TIME_ALIASES.get(match.group("time").lower())
+
+    if input_unit is None or input_time is None:
+        return None
+
+    requested_unit = input_unit
+    requested_time = input_time
+
+    if requested:
+        requested_unit = _RATE_UNIT_ALIASES.get(
+            requested.group("unit").lower()
+        )
+        requested_time = _RATE_TIME_ALIASES.get(
+            requested.group("time").lower()
+        )
+
+    if requested_unit is None or requested_time is None:
+        return None
+
+    # No distance/volume/category conversion is attempted locally.
+    if requested_unit != input_unit:
+        return None
+
+    try:
+        amount = Decimal(match.group("amount"))
+        duration = Decimal(match.group("duration"))
+    except InvalidOperation:
+        return None
+
+    if amount < 0 or duration <= 0:
+        return None
+
+    duration_in_requested_units = (
+        duration
+        * _RATE_TIME_SECONDS[input_time]
+        / _RATE_TIME_SECONDS[requested_time]
+    )
+
+    if duration_in_requested_units <= 0:
+        return None
+
+    rate = amount / duration_in_requested_units
+
+    return (
+        f"{_format_decimal(rate)} "
+        f"{_RATE_UNIT_DISPLAY[requested_unit]} per {requested_time}"
+    )
+
+
 _ARITH = re.compile(
     r"(?:what is|calculate|compute|combien fait)?\s*"
     r"(-?\d+(?:\.\d+)?)\s*([+\-*/x×])\s*(-?\d+(?:\.\d+)?)\s*[=?]?\s*$", re.I)
@@ -507,6 +687,140 @@ def solve_ner(raw: str) -> str | None:
 
 
 # ── Logical deduction (constraint puzzle by enumeration) ─────────────────────
+
+
+
+# ── Categorical syllogism solver ─────────────────────────────────────────────
+
+_SYLLOGISM_QUESTION = re.compile(
+    r"\bcan\s+we\s+conclude\s+that\s+some\s+"
+    r"(?P<left>.+?)\s+are\s+(?P<right>.+?)\?",
+    re.I | re.S,
+)
+
+_SYLLOGISM_ALL = re.compile(
+    r"^(?:all|every)\s+(.+?)\s+are\s+(.+)$",
+    re.I,
+)
+
+_SYLLOGISM_SOME = re.compile(
+    r"^some\s+(.+?)\s+are\s+(.+)$",
+    re.I,
+)
+
+_SYLLOGISM_LOCATIVE_SUFFIX = re.compile(
+    r"\s+(?:in|at|within|inside)\s+(?:the\s+)?[a-z][a-z\s-]*$",
+    re.I,
+)
+
+
+def _normalize_category_phrase(value: str) -> str:
+    phrase = re.sub(r"\s+", " ", value.lower().strip(" \t\r\n.,;:!?"))
+    phrase = re.sub(r"^(?:a|an|the)\s+", "", phrase)
+    phrase = _SYLLOGISM_LOCATIVE_SUFFIX.sub("", phrase)
+    return phrase.strip()
+
+
+def _category_closure(
+    initial: set[str],
+    edges: dict[str, set[str]],
+) -> set[str]:
+    closure = set(initial)
+    changed = True
+
+    while changed:
+        changed = False
+        for category in tuple(closure):
+            for parent in edges.get(category, set()):
+                if parent not in closure:
+                    closure.add(parent)
+                    changed = True
+
+    return closure
+
+
+def solve_categorical_syllogism(raw: str) -> str | None:
+    """Resolve bounded categorical entailment.
+
+    Supported premise forms:
+      All A are B.
+      Every A are B.
+      Some C are A.
+
+    Supported question:
+      Can we conclude that some C are B?
+
+    Every premise sentence must match the supported grammar. If parsing is
+    incomplete or ambiguous, the solver abstains.
+    """
+    question = _SYLLOGISM_QUESTION.search(raw)
+    if not question:
+        return None
+
+    premise_text = raw[:question.start()].strip()
+    premise_sentences = [
+        sentence.strip()
+        for sentence in re.split(r"[.!?]+", premise_text)
+        if sentence.strip()
+    ]
+
+    if not premise_sentences:
+        return None
+
+    edges: dict[str, set[str]] = {}
+    witnesses: list[tuple[str, str]] = []
+
+    for sentence in premise_sentences:
+        universal = _SYLLOGISM_ALL.fullmatch(sentence)
+        existential = _SYLLOGISM_SOME.fullmatch(sentence)
+
+        if universal:
+            child = _normalize_category_phrase(universal.group(1))
+            parent = _normalize_category_phrase(universal.group(2))
+            if not child or not parent or child == parent:
+                return None
+            edges.setdefault(child, set()).add(parent)
+            continue
+
+        if existential:
+            left = _normalize_category_phrase(existential.group(1))
+            right = _normalize_category_phrase(existential.group(2))
+            if not left or not right:
+                return None
+            witnesses.append((left, right))
+            continue
+
+        # An unsupported premise must never be ignored silently.
+        return None
+
+    if not edges or not witnesses:
+        return None
+
+    conclusion_left = _normalize_category_phrase(question.group("left"))
+    conclusion_right = _normalize_category_phrase(question.group("right"))
+
+    if not conclusion_left or not conclusion_right:
+        return None
+
+    entailed = False
+
+    for left, right in witnesses:
+        witness_types = _category_closure({left, right}, edges)
+        if (
+            conclusion_left in witness_types
+            and conclusion_right in witness_types
+        ):
+            entailed = True
+            break
+
+    if entailed:
+        return (
+            "Yes. The universal and existential premises entail "
+            "the stated conclusion."
+        )
+
+    return "No. The stated premises do not entail that conclusion."
+
 
 _PUZZLE_ITEMS = re.compile(
     r"each\s+owns?\s+a\s+different\s+\w+\s*:\s*([\w\s,]+?)(?:\.|$)", re.I)
@@ -1107,8 +1421,11 @@ def build_citer_compressed_prompt(task_prompt: str, code_snippet: str) -> str:
 def try_local_solvers(raw: str) -> dict | None:
     """Returns {"answer", "solver"} when a category closes locally, else None."""
     for fn, name in ((solve_math_multistep, "math_multistep_local"),
+                     (solve_rate, "math_rate_local"),
                      (solve_math, "math_local"),
                      (solve_summary_one_sentence, "summary_one_sentence_local"),
+                     (solve_categorical_syllogism,
+                      "logic_categorical_local"),
                      (solve_logic_puzzle, "logic_local"),
                      (solve_ner, "ner_local"),
                      (solve_sentiment, "sentiment_local"),
