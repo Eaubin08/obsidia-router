@@ -577,6 +577,16 @@ def main() -> int:
     print("Obsidia Router — Model Matrix Smoke Test")
     print("=" * 70)
 
+    # Spend guard: live mode runs N models x 3 categories with full
+    # completions — the most expensive script in this repo. Explicit
+    # CONFIRM_SPEND=1 is required for any live execution.
+    if not dry_run_flag and os.environ.get("CONFIRM_SPEND", "").strip() != "1":
+        print("REFUSED: live mode runs N models x 3 categories with full")
+        print("completions and spends real Fireworks tokens.")
+        print("Use --dry-run for the safe mode, or set CONFIRM_SPEND=1 to")
+        print("explicitly authorize the spend.")
+        return 2
+
     if quality_discovery:
         run_mode = "quality_discovery_v1"
         budget_override = _QUALITY_DISCOVERY_BUDGETS
