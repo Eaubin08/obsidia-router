@@ -7,6 +7,34 @@
 Narrative extends to Track 3: this router is a visible slice of a larger
 cognitive OS where the LLM is an **organ**, not the brain.
 
+> **100% measured accuracy across the published Track 1 validation surfaces.**
+>
+> **Internal routing accuracy: 100% — 18/18 routes correct.**
+>
+> Most routers optimize which model to call. Obsidia first decides **whether a model call is necessary**.
+
+## Track 1 measured results
+
+| Validation surface | Result | Status |
+|---|---:|---|
+| AMD practice categories | 8/8 | 100% measured |
+| Internal Track 1 routing benchmark | 18/18 | 100% route accuracy |
+| V3B stack routes | 15/15 | 100% closed |
+| Official-runner live sample (5 tasks) | 4 local / 1 remote | ≈389 tokens |
+| Hidden AMD judge | Not yet known | External evaluation |
+
+> These are repository-measured validation results. They do not claim the
+> hidden AMD judge score in advance. The hidden official AMD evaluation
+> remains external to these repository metrics.
+
+Evidence levels used throughout this repo:
+`PRACTICE` (AMD practice categories) · `INTERNAL_DRY` (internal benchmark,
+zero token) · `LIVE_SAMPLE` (real Fireworks calls on a 5-task sample) ·
+`OFFICIAL_HIDDEN` (the AMD judge — unknown until executed).
+
+Full command matrix and evidence details: [docs/BENCHMARKS.md](docs/BENCHMARKS.md) ·
+Track 3 metric claims: [docs/TRACK3_METRICS.md](docs/TRACK3_METRICS.md)
+
 ## The thesis
 
 Classic agents route **between** models. Obsidia first decides **if** a model
@@ -48,22 +76,29 @@ python -m app.cli "explique le contexte de cette decision"
 # interactive loop ('metrics' prints live counters)
 python -m app.cli
 
-# tests (static + dynamic bounded invariant tests)
+# tests (static + dynamic bounded invariant tests)   [SAFE, zero token]
 python -m pytest tests/ -q
+# expected: all tests pass
 
-# benchmark: obsidia routing vs direct-to-model baseline (estimated tokens)
-python benchmarks/run_benchmark.py
+# AMD practice category accuracy                      [SAFE, zero token]
+python benchmarks/answer_accuracy.py
+# expected: overall 8/8 PASS, total_tokens_amd = 0   (PRACTICE)
 
-# MEASURED head-to-head: all 18 tasks really sent raw to the cheapest
-# Fireworks model (classic-agent arm) vs the full Obsidia stack.
-# Requires FIREWORKS_API_KEY, spends real credits, real request_ids.
-python benchmarks/run_benchmark.py --live-baseline
+# main internal benchmark                             [SAFE, zero token]
+python benchmarks/run_benchmark.py --track1-official --stack-v3b
+# expected: 18/18 route accuracy, 0 tokens, 0 remote (INTERNAL_DRY)
 
-# every run also executes the DYNAMIC BOUNDED PHASE: a seeded generator
-# composes variations never written down in advance (default 30/family,
-# 180 cases) and asserts the frame holds on all of them, at 0 token cost.
-python benchmarks/run_benchmark.py --dynamic 100   # 600 generated cases
+# official runner on a local sample                   [LIVE if key set]
+python scripts/run_official.py --input tmp_live_input/tasks.json --output tmp_live_output/results.json
+# with FIREWORKS_API_KEY: ~389 tokens, 1/5 remote calls (LIVE_SAMPLE)
+# without key: dry-run, routing still fully validated
 ```
+
+⚠ **Commands that spend Fireworks tokens** (`--live-baseline`,
+`--random-compare`, `run_frontier_benchmark.py --live`, `probe_ladder.py`,
+`fireworks_smoke_test.py`, `model_matrix_smoke_test.py` without `--dry-run`)
+are documented in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) and must be run
+deliberately — never as part of an automatic validation pack.
 
 ### Docker (required for submission)
 
@@ -121,7 +156,7 @@ scoring, routing, or gates.
 
 | Component | Status |
 |---|---|
-| UnifiedInputIR, gates, topic router, level decision | **Real** — extracted and adapted from the Obsidia X-108 terminal (369 gate tests upstream). |
+| UnifiedInputIR, gates, topic router, level decision | **Real** — extracted and adapted from the Obsidia X-108 terminal. The public cut is covered by its own test suite (775 tests). |
 | Fireworks adapter | **Real** — OpenAI-compatible client; dry-run without credentials. |
 | Brody (proprietary local LLM organ) | **Stubbed** — interface and contract kept; weights and private memory stay out of the public cut. |
 | Memory index | **Minimal example** — demonstrates level-2 lookup mechanics. |
@@ -161,10 +196,11 @@ model answers are generated remotely.
 
 Stable comparison axes reported by the benchmark:
 
-| Metric | Direct model baseline | Obsidia Router |
-|---|---:|---:|
-| Remote model calls | 18 | 3 |
-| Governed frame violations | measured live | measured live |
-| Route accuracy | — | 100% |
+| Metric | Baseline | Obsidia Router | Evidence level |
+|---|---:|---:|---|
+| Remote calls — internal 18-task benchmark | 18 expected baseline calls | 0/18 | INTERNAL_DRY |
+| Remote calls — official-runner 5-task sample | 5 possible calls | 1/5 | LIVE_SAMPLE |
+| Internal route accuracy | — | 100% (18/18) | INTERNAL_DRY |
+| Governed frame violations | measured live | measured live | LIVE_COMPARATIVE (on demand) |
 
 Path quality, speed profile and escalation quality are reported as separate axes. No global quality score is introduced.
