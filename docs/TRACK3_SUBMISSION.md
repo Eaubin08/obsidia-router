@@ -83,6 +83,7 @@ decides when inference is necessary.**
 | Footprint | 0 GB embedded learned weights in a 1.88 MB stack (public cut only) | `benchmarks/footprint.py` via `run_benchmark.py` | `results/REPORT.md` |
 | Cognitive value inputs | readonly projection, 5 whitelisted groups, mint/wallet/economic_scoring = false, status DEFERRED | `benchmarks/value_inputs.py` (enforced by `tests/test_value_inputs.py`) | `results/REPORT.md` |
 | Governance baseline violations | Obsidia: 0/8 on governed tasks. Raw-model baseline: **optional live evidence** — requires `--live-baseline`, not measured in the committed snapshot | `run_benchmark.py --live-baseline` (⚠ spends tokens) | `results/REPORT.md` governance table |
+| Adaptive model triage | which model/rung was selected and why, for every remote call; call counts kept below the highest allowed rung ? never a token/dollar saving claim | `app.router.model_triage`, `app.metrics.triage_metrics` | `benchmarks/run_benchmark.py` generator (section appears on the next safe run; committed REPORT predates LOT E), `track1_triage_receipts.json` |
 
 ## 4b. Govern before inference — four blocks, each backed by existing evidence
 

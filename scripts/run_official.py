@@ -31,6 +31,7 @@ from app.cli import load_memory_index, run_one
 from app.metrics.collector import MetricsCollector
 from app.router.decision import DEFAULT_MODEL_LADDER
 from app.router.model_triage import select_model_for_request
+from app.metrics.triage_metrics import triage_summary
 from benchmarks.track1_remote_answer_contract import build_remote_answer_contract
 from benchmarks.track1_runner import normalize_task, track1_answer
 from benchmarks.track1_escalation_guard import (
@@ -99,6 +100,7 @@ def main() -> int:
     print()
 
     results: list[dict] = []
+    triage_rows: list[dict] = []
     tokens_total = 0
     remote_calls = 0
 
@@ -137,9 +139,10 @@ def main() -> int:
                 # LOT D: same single triage authority as decide()'s own
                 # level-3 escalation — the contract's model_preference is
                 # informative only and never selects the call target here.
-                _model = select_model_for_request(
+                _sel = select_model_for_request(
                     request, ladder, answer_kind=_c["answer_kind"],
-                )["selected_model"]
+                )
+                _model = _sel["selected_model"]
                 _fw = fireworks.chat(
                     _model, request,
                     max_tokens=_c["max_tokens"],
@@ -153,8 +156,26 @@ def main() -> int:
                     output=_fw["text"],
                 )
                 if metrics.records:
-                    metrics.records[-1]["fireworks_tokens"] = _fw.get("total_tokens", 0)
-                    metrics.records[-1]["remote_call_avoided"] = False
+                    # LOT E: this record was created by run_one() BEFORE
+                    # escalation (route was "brody"/"clarification_needed"),
+                    # so every triage field must be patched here too — not
+                    # just the model — or aggregates would silently miss
+                    # every escalated call.
+                    _last = metrics.records[-1]
+                    _last["route"] = "fireworks"
+                    _last["fireworks_tokens"] = _fw.get("total_tokens", 0)
+                    _last["prompt_tokens"] = _fw.get("prompt_tokens", 0)
+                    _last["completion_tokens"] = _fw.get("completion_tokens", 0)
+                    _last["remote_call_avoided"] = False
+                    _last["selected_model"] = _model
+                    _last["selected_rung"] = _sel["selected_rung"]
+                    _last["selection_reason"] = _sel["selection_reason"]
+                    _last["ladder_size"] = len(ladder)
+                    _last["contract_model_preference"] = _c["model_preference"]
+                    _last["actual_model_used"] = _model
+                    _last["raw_prompt_chars"] = len(request)
+                    _last["system_prompt_chars"] = len(_c["contract_prompt"])
+                    _last["compression_applied"] = False
 
             latency_ms = round((time.perf_counter() - t0) * 1000, 2)
             rec = metrics.records[-1] if metrics.records else {}
@@ -180,9 +201,51 @@ def main() -> int:
                 "output":               decision.get("output", ""),
                 "memory_entry":         decision.get("memory_entry"),
                 "topic_name":           decision.get("topic", {}).get("topic", "general"),
+                # LOT E — audit-only triage evidence, never part of the
+                # required AMD schema (see results.json below, untouched).
+                "selected_model":       rec.get("selected_model"),
+                "selected_rung":        rec.get("selected_rung"),
+                "selection_reason":     rec.get("selection_reason"),
+                "ladder_size":          rec.get("ladder_size"),
+                "contract_model_preference": rec.get("contract_model_preference"),
+                "actual_model_used":    rec.get("actual_model_used"),
+                "raw_prompt_chars":     rec.get("raw_prompt_chars"),
+                "system_prompt_chars":  rec.get("system_prompt_chars"),
             }
             answer = track1_answer(row)
             route_label = decision["route"]
+            # Metadata-only sidecar: never duplicate the request,
+            # generated answer, memory content, or system-prompt content.
+            triage_rows.append({
+                "id": task_id,
+                "actual_route": decision["route"],
+                "gate_verdict": decision["gate"]["verdict"],
+                "gate_matched": decision["gate"].get("matched"),
+                "level": decision["level"],
+                "intent_type": decision["ir"]["intent_type"],
+                "target_layer": decision["ir"]["target_layer"],
+                "selected_model": rec.get("selected_model"),
+                "selected_rung": rec.get("selected_rung"),
+                "selection_reason": rec.get("selection_reason"),
+                "ladder_size": rec.get("ladder_size"),
+                "contract_model_preference": rec.get(
+                    "contract_model_preference"
+                ),
+                "actual_model_used": rec.get("actual_model_used"),
+                "raw_prompt_chars": rec.get("raw_prompt_chars"),
+                "system_prompt_chars": rec.get("system_prompt_chars"),
+                "compression_applied": rec.get("compression_applied"),
+                "compressed_prompt_chars": rec.get(
+                    "compressed_prompt_chars"
+                ),
+                "fireworks_tokens": rec.get("fireworks_tokens", 0),
+                "prompt_tokens": rec.get("prompt_tokens", 0),
+                "completion_tokens": rec.get("completion_tokens", 0),
+                "remote_call_avoided": rec.get(
+                    "remote_call_avoided", True
+                ),
+                "routing_latency_ms": latency_ms,
+            })
 
         except Exception as exc:
             answer = f"[error] routing failed: {type(exc).__name__}: {exc}"
@@ -190,13 +253,29 @@ def main() -> int:
         results.append({"task_id": task_id, "answer": answer})
         print(f"  [{task_id}] route={route_label} tok={tok} {latency_ms:.1f}ms")
 
+    # AMD-required output: strict [{"task_id","answer"}] list only. This
+    # schema is never touched by LOT E.
     output_path.write_text(
         json.dumps(results, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
+    # LOT E — audit-only companion file, next to results.json, never read
+    # by the AMD harness (which only opens the exact --output path). Gives
+    # a reviewer the "why" behind each remote call without touching the
+    # required schema.
+    triage_path = output_path.parent / "track1_triage_receipts.json"
+    triage_path.write_text(
+        json.dumps(
+            {"tasks": triage_rows, "summary": triage_summary(metrics.records)},
+            indent=2, ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
     print()
     print(f"results    -> {output_path}")
+    print(f"triage     -> {triage_path}")
     print(f"tasks      : {len(results)}")
     print(f"tokens used: {tokens_total}")
     print(f"remote calls: {remote_calls}/{len(results)}")

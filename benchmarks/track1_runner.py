@@ -207,12 +207,37 @@ def build_receipts(track1_rows: list[dict], extra: dict | None = None) -> dict:
             "target_layer": row.get("target_layer"),
             "missing": row.get("missing", []),
             "fireworks_tokens": row.get("fireworks_tokens", 0),
+            "prompt_tokens": row.get("prompt_tokens", 0),
+            "completion_tokens": row.get("completion_tokens", 0),
             "remote_call_avoided": row.get("remote_call_avoided", True),
             "routing_latency_ms": row.get("routing_latency_ms", 0.0),
             "actual_model_used": row.get("actual_model_used") or row.get("model"),
+            # LOT E — doctrine (see app.metrics.triage_metrics):
+            #   selected_model            = model chosen by the central triage
+            #                                authority (== row["model"] on a
+            #                                fireworks row; None otherwise)
+            #   actual_model_used         = model really transmitted to
+            #                                fireworks.chat() (field above)
+            #   contract_model_preference = the remote answer contract's OLD
+            #                                informative field — kept for
+            #                                back-compat only, never selects
+            #                                the call target (LOT D)
+            #   selected_rung/selection_reason = the triage's own trace
+            "selected_model": row.get("model") if row["actual_route"] == "fireworks" else None,
+            "selected_rung": row.get("selected_rung"),
+            "selection_reason": row.get("selection_reason"),
+            "ladder_size": row.get("ladder_size"),
+            "contract_model_preference": (
+                contract["model_preference"]
+                if contract and row["actual_route"] == "fireworks"
+                else None
+            ),
+            "raw_prompt_chars": row.get("raw_prompt_chars"),
+            "system_prompt_chars": row.get("system_prompt_chars"),
+            "compression_applied": row.get("compression_applied"),
+            "compressed_prompt_chars": row.get("compressed_prompt_chars"),
             # Remote answer contract labels (fireworks rows only)
             "contract_kind": contract["answer_kind"] if contract else None,
-            "selected_model": contract["model_preference"] if contract else None,
             "model_matrix_calibrated": contract["model_matrix_calibrated"] if contract else False,
             "calibration_source": contract["calibration_source"] if contract else None,
             "budget_headroom_policy": contract["budget_headroom_policy"] if contract else None,
@@ -328,6 +353,11 @@ def standalone_run(tasks_file: Path, out_dir: Path) -> int:
             "output": decision.get("output", ""),
             "memory_entry": decision.get("memory_entry"),
             "topic_name": decision.get("topic", {}).get("topic", "general"),
+            "actual_model_used": decision.get("actual_model_used"),
+            "selected_rung": rec.get("selected_rung"),
+            "selection_reason": rec.get("selection_reason"),
+            "raw_prompt_chars": rec.get("raw_prompt_chars"),
+            "system_prompt_chars": rec.get("system_prompt_chars"),
         }
         track1_rows.append(row)
 

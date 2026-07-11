@@ -141,5 +141,10 @@ def decide(raw: str, memory_index: dict | None = None,
     _selection = select_model_for_request(raw, ladder, answer_kind=_answer_kind)
     decision.update(level=3, route="fireworks", model=_selection["selected_model"],
                     reason=f"remote inference required; {_selection['selection_reason']}")
+    # LOT E: expose the triage evidence itself (not just its outcome) so
+    # metrics/receipts can audit "why", not only "which model".
     decision["selected_rung"] = _selection["selected_rung"]
+    decision["selection_reason"] = _selection["selection_reason"]
+    decision["ladder_size"] = len(ladder)
+    decision["model_ladder"] = list(ladder)
     return decision

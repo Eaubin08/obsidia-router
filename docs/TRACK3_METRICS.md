@@ -130,6 +130,28 @@ Two separate, run-dependent measurements (see BENCHMARKS.md):
   `tests/test_value_inputs.py`).
 - **Evidence level**: INTERNAL_DRY.
 
+## 9. Adaptive model triage
+
+- **Measured**: which model was selected, at which ladder rung, and why —
+  for every remote call, on the runner, the benchmark and the CLI alike.
+  `model_call_distribution`, `model_rung_distribution`,
+  `first_rung_call_rate` / `intermediate_rung_call_rate` /
+  `last_rung_call_rate`, `higher_rung_calls_avoided` (a call count),
+  `local_solver_hit_rate`, `code_tasks_closed_locally`, `remote_code_calls`.
+- **Source**: `app.router.model_triage` (the selection itself),
+  `app.metrics.triage_metrics` (the aggregates), and the report generator
+  in `benchmarks/run_benchmark.py`. The "Adaptive model triage" section
+  will appear in `results/REPORT.md` on the next safe benchmark run; the
+  currently committed report predates LOT E. Per-run metadata is written
+  to `track1_triage_receipts.json`.
+- **Evidence level**: INTERNAL_DRY (instrumentation always active);
+  LIVE_SAMPLE for any run with a real `FIREWORKS_API_KEY`.
+- **Allowed**:
+  > The router records which rung of the ALLOWED_MODELS ladder it selected and why, for every remote call.
+- **Forbidden**:
+  > ~~Using a smaller model saves N% in tokens/dollars.~~ (per-model cost is not measured; only call counts are reported)
+  > ~~The ladder order is verified as cost-ascending.~~ (it is stated by the harness, not independently checked)
+
 ---
 
 ## Narrative spine (each sentence backed by a metric above)
@@ -142,3 +164,4 @@ Two separate, run-dependent measurements (see BENCHMARKS.md):
 6. *"KX108_ONLY, no real action, no memory write"* → §3 + §4 (740/740).
 7. *"Frontier boundary map"* → §5.
 8. *"Cognitive value inputs, readonly, no wallet"* → §8.
+9. *"The router audits its own model choice"* → §9 adaptive model triage.

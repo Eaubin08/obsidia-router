@@ -51,13 +51,21 @@ def run_one(raw: str, metrics: MetricsCollector, memory_index: dict,
         # override the router's selection.
         _fw_model = decision["model"]
         decision["actual_model_used"] = _fw_model
+        # LOT E: raw_prompt_chars/system_prompt_chars are lengths only, never
+        # the prompt content. contract_model_preference is the contract's
+        # informative field (LOT D), kept distinct from the real selection.
+        decision["raw_prompt_chars"] = len(raw)
         if track1_profile:
+            decision["system_prompt_chars"] = len(track1_profile["system"])
+            decision["contract_model_preference"] = track1_profile.get("model")
             result = fireworks.chat(
                 _fw_model, raw,
                 max_tokens=track1_profile["max_tokens"],
                 system=track1_profile["system"],
             )
         else:
+            decision["system_prompt_chars"] = None
+            decision["contract_model_preference"] = None
             result = fireworks.chat(_fw_model, raw)
         output_text = result["text"]
     elif decision["route"] == "local_solver":

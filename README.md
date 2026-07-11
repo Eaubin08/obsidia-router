@@ -183,6 +183,33 @@ full Obsidia stack (deferred, non-token by policy) would read. Nothing is
 minted, priced, or scored, and the projection does not influence Track 1
 scoring, routing, or gates.
 
+### Adaptive model triage evidence
+
+Every remote-model record is instrumented with three distinct fields, never
+conflated:
+
+- **`selected_model`** — the model actually chosen by the single triage
+  authority (`app.router.model_triage`), always equal to the model
+  transmitted to `fireworks.chat()`.
+- **`actual_model_used`** — the model really captured on the transport
+  call; equal to `selected_model` by construction, kept as a separate field
+  for audit trails.
+- **`contract_model_preference`** — the remote answer contract's older,
+  informative default; kept for telemetry/back-compat only and never
+  selects the call target.
+
+Aggregates (`model_call_distribution`, `model_rung_distribution`,
+`first_rung_call_rate` / `intermediate_rung_call_rate` / `last_rung_call_rate`,
+`higher_rung_calls_avoided`, `local_solver_hit_rate`, `code_tasks_closed_locally`,
+prompt-size counters) are computed by `app.metrics.triage_metrics` from
+existing records only — zero extra Fireworks calls. `ALLOWED_MODELS` order
+is stated by the harness; it is not independently verified as
+cost-ascending, so rung position is reported as a **call count**, never
+converted into a token or dollar saving. See
+[docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md) for the full field
+list. The next safe benchmark run will add the adaptive-triage section to
+`results/REPORT.md`; the currently committed report predates LOT E.
+
 ## Tests
 
 - `tests/test_ir.py`, `test_gates.py`, `test_decision.py` — static behavior

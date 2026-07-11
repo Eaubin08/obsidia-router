@@ -125,6 +125,39 @@ no extra keys, English answers only:
 Per-call Fireworks timeout is clamped in code to 25 s (under the 30 s
 per-answer cap); the clamp cannot be raised by environment or caller.
 
+### Adaptive triage receipts (audit-only, never part of the judged schema)
+
+`scripts/run_official.py` writes a companion file next to `results.json`:
+`track1_triage_receipts.json`. It is never read by the AMD harness (which
+only opens the exact `--output` path) and never changes the required
+schema above. Its purpose is to let a reviewer audit *why* a given model
+was called, without touching the strict `{task_id, answer}` contract.
+
+The sidecar is a metadata-only projection. It never stores the request text,
+generated answer, memory content, or system-prompt content; only lengths,
+routes, model identifiers, rung evidence, and token counters are written.
+
+Per-task fields (`null` on any locally-closed task — no remote selection
+happened, so there is nothing truthful to report):
+
+| Field | Meaning |
+|---|---|
+| `selected_model` | model chosen by the single triage authority; equals the model transmitted to `fireworks.chat()` |
+| `actual_model_used` | the model really captured on the transport call (equal to `selected_model` by construction) |
+| `contract_model_preference` | the remote answer contract's older, informative default — never selects the call target |
+| `selected_rung` | 0-indexed position in the resolved `ALLOWED_MODELS` ladder |
+| `selection_reason` | short deterministic explanation of the rung |
+| `ladder_size` | length of the resolved ladder for that call |
+| `raw_prompt_chars` / `system_prompt_chars` | lengths only, never the prompt content |
+
+A `summary` block aggregates these across the run: `model_call_distribution`,
+`model_rung_distribution`, `first_rung_call_rate` /
+`intermediate_rung_call_rate` / `last_rung_call_rate`,
+`higher_rung_calls_avoided` (a **call count**, never a token/dollar claim),
+`local_solver_hit_rate`, `code_tasks_closed_locally`, `remote_code_calls`,
+and prompt-size totals. Zero remote calls in a given run yields safe zero
+rates, never a division error — see `app.metrics.triage_metrics`.
+
 ## F. Evidence levels
 
 - `PRACTICE` — the 8 AMD practice categories (this harness).

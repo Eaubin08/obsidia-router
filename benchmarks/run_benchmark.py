@@ -84,6 +84,59 @@ def _cost_usd(prompt_tokens: int, completion_tokens: int) -> float | None:
                  + completion_tokens * float(cout) / 1e6, 6)
 
 
+def _render_adaptive_triage_section(s: dict) -> list[str]:
+    """Adaptive model triage (LOT E) — values observed in THIS run only.
+
+    Instrumentation is always present (app.metrics.triage_metrics runs on
+    every record); a zero remote-call count in a given pack means no
+    escalation happened in this particular run, not that the triage never
+    fires — see docs/TRACK1_SUBMISSION.md.
+    """
+    lines = ["## Adaptive model triage", ""]
+    remote_calls = s.get("remote_model_calls", 0)
+    if remote_calls == 0:
+        lines += [
+            "Remote model calls: 0",
+            "Model distribution: no remote calls in this run.",
+            "",
+            "_Triage instrumentation is active on every record; this pack simply "
+            "closed every task locally or via memory. See "
+            "docs/TRACK1_SUBMISSION.md for a run with remote escalations._",
+            "",
+        ]
+        return lines
+
+    dist = s.get("model_call_distribution", {})
+    rung_dist = s.get("model_rung_distribution", {})
+    lines += [f"Remote model calls: {remote_calls}"]
+    for model, count in dist.items():
+        lines.append(f"- `{model}`: {count}")
+    lines.append("")
+    for rung in sorted(rung_dist, key=int):
+        lines.append(f"Rung {rung}: {rung_dist[rung]}")
+    lines += [
+        f"Calls kept below highest allowed rung: {s.get('higher_rung_calls_avoided', 0)}",
+        f"Highest-rung calls: {s.get('highest_rung_required_calls', 0)}",
+        f"Average selected rung: {s.get('average_selected_rung', 0.0)}",
+        "",
+        f"Local solver hits: {s.get('local_solver_hits', 0)} "
+        f"({s.get('local_solver_hit_rate', 0.0):.0%} of all tasks)",
+        f"Code tasks total: {s.get('code_tasks_total', 0)} — "
+        f"closed locally: {s.get('code_tasks_closed_locally', 0)}, "
+        f"remote: {s.get('remote_code_calls', 0)}",
+        "",
+        f"Total raw prompt chars (remote calls): {s.get('total_raw_prompt_chars', 0)} "
+        f"(avg {s.get('average_raw_prompt_chars', 0.0)}, "
+        f"max {s.get('max_raw_prompt_chars', 0)})",
+        "",
+        "_Rung position is a call count, not a token or dollar saving — real "
+        "per-model costs are not measured here. Ladder order and cost are "
+        "stated by the harness (ALLOWED_MODELS), not independently verified._",
+        "",
+    ]
+    return lines
+
+
 def write_report_md(report: dict, out_dir: Path) -> Path:
     """One page a judge can read in under two minutes."""
     s = report["obsidia"]
@@ -699,6 +752,8 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
             "",
         ]
 
+    lines += _render_adaptive_triage_section(s)
+
     lines += [
         "## Reading",
         "",
@@ -1208,9 +1263,10 @@ def main() -> int:
             # LOT D: same single triage authority as decide()'s own
             # level-3 escalation — the contract's model_preference is
             # informative only and never selects the call target here.
-            _escalation_model = select_model_for_request(
+            _esc_sel = select_model_for_request(
                 task["request"], ladder, answer_kind=_c["answer_kind"],
-            )["selected_model"]
+            )
+            _escalation_model = _esc_sel["selected_model"]
             _fw = fireworks.chat(
                 _escalation_model,
                 task["request"], max_tokens=_c["max_tokens"],
@@ -1220,7 +1276,22 @@ def main() -> int:
                             actual_model_used=_escalation_model,
                             output=_fw["text"])
             if metrics.records:
+                # LOT E: this record predates escalation (route was
+                # "brody"/"clarification_needed") — every triage field must
+                # be patched here too, not just the model.
+                metrics.records[-1]["route"] = "fireworks"
+                metrics.records[-1]["selected_model"] = _escalation_model
+                metrics.records[-1]["selected_rung"] = _esc_sel["selected_rung"]
+                metrics.records[-1]["selection_reason"] = _esc_sel["selection_reason"]
+                metrics.records[-1]["ladder_size"] = len(ladder)
+                metrics.records[-1]["contract_model_preference"] = _c["model_preference"]
+                metrics.records[-1]["actual_model_used"] = _escalation_model
+                metrics.records[-1]["raw_prompt_chars"] = len(task["request"])
+                metrics.records[-1]["system_prompt_chars"] = len(_c["contract_prompt"])
+                metrics.records[-1]["compression_applied"] = False
                 metrics.records[-1]["fireworks_tokens"] = _fw.get("total_tokens", 0)
+                metrics.records[-1]["prompt_tokens"] = _fw.get("prompt_tokens", 0)
+                metrics.records[-1]["completion_tokens"] = _fw.get("completion_tokens", 0)
                 metrics.records[-1]["remote_call_avoided"] = False
         routing_latency = round(time.perf_counter() - t0, 4)
 
@@ -1299,6 +1370,12 @@ def main() -> int:
                 "target_layer": ir["target_layer"],
                 "missing": ir.get("missing", []),
                 "fireworks_tokens": rec["fireworks_tokens"],
+                "prompt_tokens": rec.get("prompt_tokens", 0),
+                "completion_tokens": rec.get("completion_tokens", 0),
+                "compression_applied": rec.get("compression_applied"),
+                "compressed_prompt_chars": rec.get(
+                    "compressed_prompt_chars"
+                ),
                 "remote_call_avoided": rec["remote_call_avoided"],
                 "routing_latency_ms": round(routing_latency * 1000, 2),
                 "output": decision.get("output", ""),
@@ -1310,6 +1387,15 @@ def main() -> int:
                 "remote_answer_contract": (
                     _t1_profile.get("remote_answer_contract") if _t1_profile else None
                 ),
+                # LOT E — audit-only triage evidence, sourced from the
+                # (possibly post-escalation-patched) metrics record.
+                "selected_model": rec.get("selected_model"),
+                "selected_rung": rec.get("selected_rung"),
+                "selection_reason": rec.get("selection_reason"),
+                "ladder_size": rec.get("ladder_size"),
+                "contract_model_preference": rec.get("contract_model_preference"),
+                "raw_prompt_chars": rec.get("raw_prompt_chars"),
+                "system_prompt_chars": rec.get("system_prompt_chars"),
             })
         mark = "OK " if ok else "FAIL"
         model_short = (decision.get("actual_model_used") or decision["model"] or "-").split("/")[-1]
