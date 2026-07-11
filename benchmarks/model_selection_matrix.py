@@ -38,7 +38,15 @@ from app.cli import load_memory_index, run_one  # noqa: E402
 from app.metrics.collector import MetricsCollector  # noqa: E402
 from app.router.decision import DEFAULT_MODEL_LADDER  # noqa: E402
 
-PRACTICE_TASKS_PATH = ROOT / "submission" / "track1" / "input" / "practice_tasks.json"
+# LOT H: grading + task loading are shared authorities in
+# benchmarks/practice_grading.py — re-exported here for compatibility.
+from benchmarks.practice_grading import (  # noqa: E402
+    GRADER_LABEL,
+    PRACTICE_GRADERS,
+    PRACTICE_TASKS_PATH,
+    grade_answer,
+    load_practice_tasks,
+)
 
 # Evaluation ceiling: 8192 verified for gpt-oss-120b (LOT G2 smoke test).
 # For other ladder models no per-model ceiling is registered; 8192 is used
@@ -46,64 +54,6 @@ PRACTICE_TASKS_PATH = ROOT / "submission" / "track1" / "input" / "practice_tasks
 # request field) and flagged as such in the artifacts.
 EVAL_MAX_TOKENS = 8192
 EVAL_TIMEOUT_S = 60.0
-
-GRADER_LABEL = "PRACTICE_DETERMINISTIC_GRADER"
-
-# ── Deterministic graders for the practice_tasks.json prompts ─────────────────
-# (task_id, category, [required regex — ALL must match, re.I | re.M])
-
-PRACTICE_GRADERS: list[tuple[str, str, list[str]]] = [
-    ("practice-01", "factual",
-     [r"canberra"]),
-    ("practice-02", "math_reasoning",
-     [r"\b72\b"]),                       # 180 km / 2.5 h = 72 km/h
-    ("practice-03", "sentiment",
-     [r"neutral|mixed"]),                # mixed review, forced 3-way choice
-    ("practice-04", "summarisation",
-     [r"solar", r"[.!?]"]),
-    ("practice-05", "ner",
-     [r"satya\s+nadella", r"microsoft", r"nairobi", r"cambridge"]),
-    ("practice-06", "code_debugging",
-     [r"return\s+total\s*/\s*len\(numbers\)(?!\s*\+)"]),  # fix removes "+ 1"
-    ("practice-07", "logical_reasoning",
-     [r"\byes\b"]),
-    ("practice-08", "code_generation",
-     [r"def\s+\w+", r"%\s*2\s*==\s*0|even"]),
-]
-
-_GRADERS_BY_ID = {tid: (cat, checks) for tid, cat, checks in PRACTICE_GRADERS}
-
-
-def load_practice_tasks() -> list[dict]:
-    """Stable mapping task_id / category / prompt from practice_tasks.json."""
-    raw = json.loads(PRACTICE_TASKS_PATH.read_text(encoding="utf-8"))
-    tasks = []
-    for t in raw:
-        tid = t["task_id"]
-        cat, _ = _GRADERS_BY_ID[tid]
-        tasks.append({"task_id": tid, "category": cat, "prompt": t["prompt"]})
-    return tasks
-
-
-def grade_answer(task_id: str, answer: str) -> dict:
-    """PRACTICE_DETERMINISTIC_GRADER — regex ALL-match, same doctrine as
-    benchmarks/answer_accuracy.py (dry-run and [error] outputs always fail)."""
-    cat, checks = _GRADERS_BY_ID[task_id]
-    text = answer or ""
-    if "[dry-run]" in text or "[error]" in text:
-        return {"task_id": task_id, "category": cat, "grade": "FAIL",
-                "pass": False, "failure_reason": "dry_run_or_error_output",
-                "format_compliant": False}
-    missing = [rx for rx in checks if not re.search(rx, text, re.I | re.M)]
-    ok = not missing
-    return {
-        "task_id": task_id,
-        "category": cat,
-        "grade": "PASS" if ok else "FAIL",
-        "pass": ok,
-        "failure_reason": None if ok else f"missing_patterns:{len(missing)}",
-        "format_compliant": bool(text.strip()),
-    }
 
 
 # ── Direct model matrix (STRATEGY A raw material) ─────────────────────────────

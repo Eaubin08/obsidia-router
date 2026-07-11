@@ -10,9 +10,11 @@ COPY app/ app/
 # scripts/: only the official runner — diagnostic smoke tests stay out
 COPY scripts/run_official.py scripts/
 COPY examples/ examples/
-# benchmarks/: only the four modules run_official.py transitively imports
+# benchmarks/: only the modules run_official.py transitively imports
 # (audited via sys.modules). No tasks.json, no fixtures, no reports.
-COPY benchmarks/track1_runner.py \
+# official_resolver.py is the LOT H canonical resolution authority.
+COPY benchmarks/official_resolver.py \
+     benchmarks/track1_runner.py \
      benchmarks/track1_remote_answer_contract.py \
      benchmarks/track1_escalation_guard.py \
      benchmarks/track1_response_profile.py \

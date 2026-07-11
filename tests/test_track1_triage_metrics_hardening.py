@@ -90,7 +90,8 @@ def test_official_sidecar_is_metadata_only_and_keeps_token_breakdown(
             encoding="utf-8"
         )
     )
-    rows = {row["id"]: row for row in sidecar["tasks"]}
+    # LOT H: sidecar rows are canonical TaskResolutions keyed by task_id
+    rows = {row["task_id"]: row for row in sidecar["tasks"]}
 
     forbidden = {
         "request",
@@ -105,36 +106,38 @@ def test_official_sidecar_is_metadata_only_and_keeps_token_breakdown(
         assert forbidden.isdisjoint(row)
 
     assert rows["local"]["selected_model"] is None
-    assert rows["local"]["actual_model_used"] is None
-    assert rows["local"]["contract_model_preference"] is None
-    assert rows["local"]["raw_prompt_chars"] is None
-    assert rows["local"]["system_prompt_chars"] is None
+    assert rows["local"]["remote_calls"] == 0
+    assert rows["local"]["total_tokens"] == 0
 
     remote = rows["remote"]
     assert remote["selected_model"] == captured[0]["model"]
-    assert remote["actual_model_used"] == captured[0]["model"]
     assert remote["prompt_tokens"] == 7
     assert remote["completion_tokens"] == 13
-    assert remote["fireworks_tokens"] == 20
+    assert remote["total_tokens"] == 20
     assert remote["raw_prompt_chars"] == captured[0]["prompt_chars"]
-    assert remote["system_prompt_chars"] == captured[0]["system_chars"]
 
 
 def test_manual_escalation_blocks_copy_token_breakdown():
+    # LOT H: the escalation block lives once, in the canonical resolver
+    # (used by run_official.py and the Docker CMD); run_benchmark.py keeps
+    # its own comparative block.
     root = Path(__file__).resolve().parents[1]
     for relative in (
-        "scripts/run_official.py",
+        "benchmarks/official_resolver.py",
         "benchmarks/run_benchmark.py",
     ):
         source = (root / relative).read_text(encoding="utf-8")
         assert (
-            '["prompt_tokens"] = _fw.get("prompt_tokens", 0)'
-            in source
+            '["prompt_tokens"] = ' in source
+            and 'fw.get("prompt_tokens", 0)' in source
         )
         assert (
-            '["completion_tokens"] = _fw.get("completion_tokens", 0)'
-            in source
+            '["completion_tokens"] = ' in source
+            and 'fw.get("completion_tokens", 0)' in source
         )
+    # run_official.py must NOT hold a parallel escalation copy anymore
+    runner_src = (root / "scripts" / "run_official.py").read_text(encoding="utf-8")
+    assert 'fw.get("prompt_tokens"' not in runner_src
 
 
 def test_docs_do_not_claim_committed_report_already_has_section():
