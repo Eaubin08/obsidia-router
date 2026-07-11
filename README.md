@@ -182,18 +182,16 @@ missing*, *action not authorized*, *clarification required*, *HOLD*,
 | ZERO_API_CALLS valid if accuracy passes | ✅ practice: 8/8 correct at 0 API calls |
 | No secrets in image | ✅ selective COPY + `.dockerignore`; no `.env`, keys, results or receipts |
 
-## Track 1 measured results
+## Key numbers at a glance
 
-| Surface | Result | Tokens |
-|---|---:|---:|
-| AMD practice (grader) | 8/8 PASS | 0 |
-| Official Docker run (GHCR) | 8/8, schema PASS | 0 |
-| Internal routing benchmark | 18/18 accepted routes, 18/18 remote calls avoided | 0 spent / 5584 estimated saved |
-| V3B stack routes | 15/15 | 0 |
-| Dynamic invariants | 180/180 + 160/160 | 0 |
-| Frontier dry | 15 local / 12 frontier-escalation / 8 governed, false closures = 0 | 0 |
-| Frontier live compression | same routes, 0 false local closures, 9 paid calls | 4265 → 2650 → 2438 real Fireworks tokens |
-| Hidden AMD judge | unknown / external | — |
+- **Official practice path**: 8/8 correct, 0 Fireworks tokens, 0/8 remote calls.
+- **Submitted Docker path**: public GHCR image, strict output schema, 8/8 practice tasks, exit 0.
+- **Internal routing benchmark**: 18/18 accepted routes, 18/18 baseline remote calls avoided, 5584 estimated tokens saved.
+- **Dynamic invariants**: 180/180 bounded variants and 160/160 dirty variants held at 0 tokens.
+- **V3B stack routing**: 15/15 routes, no real action, no memory write, no kernel mutation.
+- **Frontier suite**: 15 local closures, 12 frontier/escalation cases, 8 governed paths, 0 false local closures.
+- **Live frontier compression**: 4265 → 2650 → 2438 real Fireworks tokens, same routes, 9 paid calls.
+- **Hidden AMD judge**: unknown and external.
 
 Frontier live detail: 9 real paid Fireworks calls in the observed live run,
 mean ≈271 tokens per remote call, median 275. Level-0 rate on the internal
