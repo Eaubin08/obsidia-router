@@ -191,6 +191,22 @@ def build_contract_prompt(
     target_words: int,
 ) -> str:
     # AMD Track 1: answer always in English regardless of request language.
+    # LOT H1: summaries need a dedicated final-only contract.
+    # The generic "use well-known instances" instruction is invalid for
+    # summarisation because it encourages added examples and planning.
+    if answer_kind == "structured_summary":
+        language_instruction = (
+            "Answer in French."
+            if language == "fr"
+            else "Answer in English."
+        )
+        return (
+            "Final only. Return only the requested summary. "
+            "Follow the user's requested sentence count and format "
+            "exactly. Do not add examples, a title, markdown, a "
+            "preamble, analysis, planning, or commentary. "
+            + language_instruction
+        )
     lang_instr = "Answer in English."
     if code_only:
         return (

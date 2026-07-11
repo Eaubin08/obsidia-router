@@ -40,6 +40,11 @@ def select_rung(request: str, answer_kind: str | None = None) -> int:
                   with no complexity signal.
     RUNG_LARGE  — code request flagged complex (explicit signal or long).
     """
+    # LOT H1: summarisation is a compact transformation task.
+    # Keep it on rung 0; complexity must not promote it to a model
+    # known to emit long planning content before the requested summary.
+    if answer_kind == "structured_summary":
+        return 0
     low = request.lower()
     is_code = (answer_kind == "code_file") or any(s in low for s in _CODE_SIGNALS)
     is_long = len(request) > _LONG_PROMPT_CHARS
