@@ -35,20 +35,30 @@ DEFAULT_BASE_URL = "https://api.fireworks.ai/inference/v1"
 DEFAULT_TIMEOUT_S = 25.0
 MIN_TIMEOUT_S = 1.0
 
+# LOT G4 — bounded extended timeout for comparative evaluation ONLY
+# (direct baseline, model matrix, quality comparison). The official runner
+# and the ordinary Obsidia path never pass allow_extended_timeout and keep
+# the 25 s ceiling. Unlimited timeouts remain forbidden.
+EVAL_TIMEOUT_CEILING_S = 60.0
 
-def _clamp_timeout(value: float) -> float:
-    """Normalize any timeout to [MIN_TIMEOUT_S, DEFAULT_TIMEOUT_S].
+
+def _clamp_timeout(value: float, ceiling: float = DEFAULT_TIMEOUT_S) -> float:
+    """Normalize any timeout to [MIN_TIMEOUT_S, ceiling].
 
     Single doctrine for env values and explicit caller arguments:
-      - NaN / +-inf / <= 0  -> DEFAULT_TIMEOUT_S (misconfiguration: zero or
+      - NaN / +-inf / <= 0  -> ceiling (misconfiguration: zero or
         negative would either hang forever or fail instantly — safe ceiling)
       - 0 < value < 1       -> MIN_TIMEOUT_S
-      - value > ceiling     -> DEFAULT_TIMEOUT_S
+      - value > ceiling     -> ceiling
       - otherwise           -> value unchanged
+
+    ceiling defaults to DEFAULT_TIMEOUT_S (25 s, ordinary path). Evaluation
+    callers may raise it up to EVAL_TIMEOUT_CEILING_S via chat()'s
+    allow_extended_timeout flag — never beyond.
     """
     if not math.isfinite(value) or value <= 0:
-        return DEFAULT_TIMEOUT_S
-    return min(max(value, MIN_TIMEOUT_S), DEFAULT_TIMEOUT_S)
+        return ceiling
+    return min(max(value, MIN_TIMEOUT_S), ceiling)
 
 
 def _default_timeout() -> float:
@@ -117,14 +127,22 @@ def extract_text(data: dict) -> str:
     return "[error] no final answer content"
 
 def chat(model: str, prompt: str, max_tokens: int = 512,
-         system: str | None = None, timeout: float | None = None) -> dict:
+         system: str | None = None, timeout: float | None = None,
+         allow_extended_timeout: bool = False) -> dict:
     """One chat completion. Returns text + real token usage, or a dry-run
-    record when no API key is configured."""
+    record when no API key is configured.
+
+    allow_extended_timeout (LOT G4): evaluation-only flag. When True, an
+    explicit timeout may reach EVAL_TIMEOUT_CEILING_S (60 s) instead of the
+    ordinary 25 s ceiling. Reserved for direct-baseline capture, model
+    matrix, and quality comparison — never the official runner path.
+    """
+    ceiling = EVAL_TIMEOUT_CEILING_S if allow_extended_timeout else DEFAULT_TIMEOUT_S
     if timeout is None:
         timeout = _default_timeout()
     else:
-        # same doctrine as the env path: [1, 25] s, non-finite/<=0 -> ceiling
-        timeout = _clamp_timeout(timeout)
+        # same doctrine as the env path: [1, ceiling] s, non-finite/<=0 -> ceiling
+        timeout = _clamp_timeout(timeout, ceiling)
     api_key = os.environ.get("FIREWORKS_API_KEY", "").strip()
     if not api_key:
         return {
