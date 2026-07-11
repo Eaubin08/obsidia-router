@@ -166,7 +166,11 @@ def write_report_md(report: dict, out_dir: Path) -> Path:
         f"| 2 | Zero-Fireworks rate | **{_pe.get('zero_fireworks_rate', 0):.0%}** |",
         f"| 3 | Fireworks tokens total | **{s['fireworks_tokens']}** |",
         f"| 4 | Route accuracy | **{report['route_accuracy']:.0%}** |",
-        f"| 5 | Local decision avg / Decisions/sec | **{_lat.get('avg_routing_ms_local', 0)} ms** / ~**{_dyn.get('decisions_per_second')} decisions/s** |",
+        f"| 5 | Local deterministic decision latency | **{_lat.get('avg_routing_ms_local', 0)} ms average** (internal 18-task benchmark, non-Fireworks local rows) |",
+        f"| 6 | Dynamic campaign throughput | ~**{_dyn.get('decisions_per_second')} decisions/s** at **{_dyn.get('avg_decision_ms')} ms/decision** (dynamic seeded campaign, batch conditions) |",
+        "",
+        "> Local latency and dynamic throughput come from different task mixes "
+        "and benchmark conditions. They must not be converted into one another.",
         "",
         "## Comparison method — direct model vs Obsidia Router",
         "",

@@ -646,3 +646,23 @@ def test_integration_report_md_has_sections():
         "Structural efficiency",
     ):
         assert section in text, f"Missing section in REPORT.md: {section}"
+
+
+@pytest.mark.skipif(
+    not (RESULTS_DIR / "REPORT.md").exists(),
+    reason="REPORT.md not yet generated",
+)
+def test_integration_report_latency_throughput_separated():
+    """Latence locale et throughput dynamique : deux mesures séparées,
+    chacune avec son périmètre, jamais fusionnées ni converties."""
+    text = (RESULTS_DIR / "REPORT.md").read_text(encoding="utf-8")
+    # Les deux mesures présentes séparément, avec leur périmètre
+    assert "Local deterministic decision latency" in text
+    assert "internal 18-task benchmark" in text
+    assert "Dynamic campaign throughput" in text
+    assert "ms/decision" in text
+    assert "dynamic seeded campaign" in text
+    # Note d'interdiction de conversion
+    assert "different task mixes" in text
+    # L'ancienne ligne fusionnée ne doit plus exister
+    assert "Local decision avg / Decisions/sec" not in text
