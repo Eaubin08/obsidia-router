@@ -18,6 +18,7 @@ COPY benchmarks/official_resolver.py \
      benchmarks/track1_remote_answer_contract.py \
      benchmarks/track1_escalation_guard.py \
      benchmarks/track1_response_profile.py \
+     benchmarks/track1_prompt_compressor.py \
      benchmarks/
 
 ENV PYTHONUNBUFFERED=1
