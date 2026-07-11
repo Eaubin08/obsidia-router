@@ -34,24 +34,83 @@ calls that remain — without ever closing a task it cannot actually solve.
 - **Proof by staged evaluation**: each validation stage below demonstrates a
   different property. No single number carries the claim; the ladder does.
 
+## How to read the metrics
+
+This README does not report one global intelligence score. It reports a
+**validation ladder**. Each layer measures a different property: correctness
+of the public code, correctness of the official runner path, Docker
+submission compliance, route correctness, remote calls avoided, token spend,
+governance safety, frontier behavior, and live Fireworks cost compression.
+Repository metrics are evidence surfaces, not the hidden AMD judge score.
+
+### Token types
+
+- `local tokens = 0` — local solvers, gates, holds, denials, clarifications
+  and dry decisions do not call Fireworks.
+- `total_tokens_amd` — Fireworks tokens spent on the AMD practice category
+  path. Current value: **0**.
+- `estimated_tokens_saved` — internal estimate against a direct-model
+  baseline. Current value: **5584** on the 18-task benchmark.
+- `dry token estimate` — token estimate produced without real Fireworks
+  calls, used to inspect routing safely.
+- `live Fireworks tokens` — real token count returned by Fireworks during
+  deliberate `--live` runs.
+- `prompt tokens + completion tokens` — a live total includes both the
+  prompt sent to the model and the model response.
+- `remote call` — a real Fireworks API call.
+- `frontier/escalation bucket` — a benchmark category marking tasks that
+  should *not* close locally; not every bucket entry necessarily becomes a
+  paid Fireworks execution in the public cut.
+
+### Route and safety metrics
+
+- `route accuracy` — whether the router picked an accepted path.
+- `remote_calls_avoided` — how many direct-model calls were avoided.
+- `level-0 rate` — how much was handled before any model layer.
+- `governed` — held, denied, or clarified instead of answered/generated.
+- `correct abstention` — the local-only path correctly refuses to answer.
+- `false_local_closures = 0` — the router never pretended to know locally
+  just to save tokens. **This is the key frontier safety metric.**
+
+### Dry vs live
+
+- SAFE/dry commands are used for repeatable validation without spending
+  tokens. Live commands are deliberate and spend Fireworks tokens.
+- Dry proves route distribution and invariants. Live proves actual
+  remote-token cost.
+- The hidden AMD judge remains external to both.
+
 ## Evidence ladder
 
 | Stage | Command / surface | Result | What it proves |
 |---|---|---|---|
-| Pytest suite | `python -m pytest -q` | **1230 passed, 3 skipped** | Static + dynamic invariants hold across the whole public cut. |
-| AMD practice grader | `python benchmarks/answer_accuracy.py` | **8/8 PASS, 0 tokens, 0/8 remote** | The 8 practice categories close locally with correct answers. |
-| Official runner path | `scripts/run_official.py` + `validate_output.py` | **8/8, 0 tokens, schema STRICT PASS** | The exact judged code path produces valid output with zero spend. |
-| Docker GHCR public run | `docker run ghcr.io/eaubin08/obsidia-router:track1-0a5fc69` | **8 tasks, 0 tokens, 0/8 remote, exit 0** | The publicly pullable image reproduces the official path end-to-end. |
-| Internal routing benchmark | `run_benchmark.py --track1-official --stack-v3b` | **18/18 routes, 0 tokens, 5584 est. tokens saved** | Route decisions are correct without spending anything. |
-| Dynamic bounded invariants | `tests/test_dynamic_invariants.py` | **180/180 held, 0 tokens, ≈0.073 ms/decision** | Generated rephrasings never bypass gates or leak tokens. |
-| Dynamic dirty invariants | dirty phase V2 | **160/160 held, 0 tokens, ≈0.082 ms/decision** | Noise, typos and injection attempts do not break governance. |
-| V3B stack benchmark | stack routes | **15/15, 0 remote tokens, KX108_ONLY** | Stack surfaces (Brody/Obsidure/Lean/domains) route correctly with `real_action=false`, `memory_write=false`, `kernel_mutation=false`. |
-| Frontier dry benchmark | `run_frontier_benchmark.py` | **15 local / 12 fireworks / 8 governed, false closures = 0** | Unsupported cases escalate or abstain — no over-closing to save tokens. |
-| Frontier live compression | `run_frontier_benchmark.py --live` | **4265 → 2650 → 2438 live tokens** | Remote calls that remain are progressively cheaper without route changes. |
+| Pytest suite | `python -m pytest -q` | **1230 passed, 3 skipped** | The public cut is internally consistent; the 3 skipped tests are conditional report-integration tests, not failures. |
+| AMD practice grader | `python benchmarks/answer_accuracy.py` | **8/8 PASS, 0 tokens, 0/8 remote** | All 8 public practice categories can be answered locally on this surface. |
+| Official runner path | `scripts/run_official.py` + `validate_output.py` | **8/8, 0 tokens, schema STRICT PASS** | The same path used by the Docker container writes strict output. |
+| Docker GHCR public run | `docker run ghcr.io/eaubin08/obsidia-router:track1-0a5fc69` | **8 tasks, 0 tokens, 0/8 remote, exit 0** | The submitted public image can be pulled and run end-to-end. |
+| Internal routing benchmark | `run_benchmark.py --track1-official --stack-v3b` | **18/18 routes, 0 tokens, 5584 est. tokens saved** | The router avoids 18/18 baseline remote calls on this benchmark, saving an estimated 5584 tokens. |
+| Dynamic bounded invariants | `tests/test_dynamic_invariants.py` | **180/180 held, 0 tokens, ≈0.073 ms/decision** | Generated rephrasings preserve gate behavior. |
+| Dynamic dirty invariants | dirty phase V2 | **160/160 held, 0 tokens, ≈0.082 ms/decision** | Noise/typos/injection attempts do not leak into unsafe actions or unwanted model calls. |
+| V3B stack benchmark | stack routes | **15/15, 0 remote tokens, KX108_ONLY** | Brody/Obsidure/Lean/domain surfaces are routed without enabling real action, memory writes, or kernel mutation. |
+| Frontier dry benchmark | `run_frontier_benchmark.py` | **15 local / 12 frontier-escalation / 8 governed, false closures = 0** | The router keeps unsupported cases open/escalated/governed instead of over-closing. |
+| Frontier live compression | `run_frontier_benchmark.py --live` | **4265 baseline → 2650 compact contract → 2438 final P5D** | The same routes were kept, false local closures stayed 0, and the 9 real paid Fireworks calls became cheaper. |
 | Hidden AMD judge | external | **Unknown** | The official hidden evaluation is external; repository metrics are evidence surfaces, not a leaderboard claim. |
 
-The 3 skipped tests are conditional integration/report tests that only run
-when certain generated `results/` files are present — not a regression.
+### Frontier numbers in plain English
+
+- The frontier benchmark has **35 tasks**: 15 close locally, 8 are governed
+  by hold/deny/clarify paths, and 12 are frontier/escalation cases where the
+  router should *not* force a local answer.
+- In the observed live run, **9** of those became real paid Fireworks calls.
+- **4265** = original live frontier Fireworks spend before compact remote
+  contracts. **2650** = spend after compact system prompts and tighter
+  completion budgets. **2438** = spend after final P5D prompt hygiene and
+  cap tightening.
+- The route distribution did not change. `false_local_closures` stayed 0.
+- The paid remote calls went from about 474 tokens/call to about 271
+  tokens/call.
+- The point is not "close everything locally"; the point is "know when to
+  answer, when to govern, and when to pay for inference."
 
 ## Architecture layers
 
@@ -114,11 +173,11 @@ missing*, *action not authorized*, *clarification required*, *HOLD*,
 |---|---:|---:|
 | AMD practice (grader) | 8/8 PASS | 0 |
 | Official Docker run (GHCR) | 8/8, schema PASS | 0 |
-| Internal routing benchmark | 18/18 (100%) | 0 (est. 5584 saved) |
+| Internal routing benchmark | 18/18 accepted routes, 18/18 remote calls avoided | 0 spent / 5584 estimated saved |
 | V3B stack routes | 15/15 | 0 |
 | Dynamic invariants | 180/180 + 160/160 | 0 |
-| Frontier dry | 15 local / 12 fireworks / 8 governed, false closures = 0 | 0 |
-| Frontier live (before → after compression) | routes unchanged, false closures = 0 | 4265 → 2650 → 2438 |
+| Frontier dry | 15 local / 12 frontier-escalation / 8 governed, false closures = 0 | 0 |
+| Frontier live compression | same routes, 0 false local closures, 9 paid calls | 4265 → 2650 → 2438 real Fireworks tokens |
 | Hidden AMD judge | unknown / external | — |
 
 Frontier live detail: 9 real paid Fireworks calls in the observed live run,
@@ -126,6 +185,10 @@ mean ≈271 tokens per remote call, median 275. Level-0 rate on the internal
 benchmark: 61%.
 
 ## Why the frontier matters
+
+**The frontier benchmark is not trying to close everything locally. It
+proves that Obsidia knows when to stop, when to govern, and when to pay for
+inference.**
 
 If every task closed locally, the result would look like hardcoding or
 overfit. The 35-task frontier suite proves the opposite:
