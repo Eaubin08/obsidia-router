@@ -40,10 +40,10 @@ def select_rung(request: str, answer_kind: str | None = None) -> int:
                   with no complexity signal.
     RUNG_LARGE  — code request flagged complex (explicit signal or long).
     """
-    # LOT H2: simple bounded code tasks stay on rung 0.
-    # Long or structurally complex code requests retain the existing
-    # escalation policy. This is driven only by request characteristics,
-    # never by task identifiers or expected answers.
+    # LOT H2: explicit bounded single-function tasks stay on rung 0.
+    # Merely receiving answer_kind="code_file" is not sufficient:
+    # generic, tested, multi-component, or structurally complex requests
+    # retain the existing escalation policy.
     if answer_kind == "code_file":
         normalized_code_request = request.lower()
 
@@ -76,18 +76,56 @@ def select_rung(request: str, answer_kind: str | None = None) -> int:
             "kubernetes",
             "state machine",
             "class hierarchy",
+            "with tests",
+            "test suite",
         )
 
-        simple_bounded_code = (
+        has_complex_code_signal = any(
+            signal in normalized_code_request
+            for signal in complex_code_signals
+        )
+
+        bounded_existing_function_debug = (
             len(request) <= 700
-            and not any(
+            and not has_complex_code_signal
+            and "def " in normalized_code_request
+            and "return " in normalized_code_request
+            and any(
                 signal in normalized_code_request
-                for signal in complex_code_signals
+                for signal in (
+                    "fix",
+                    "debug",
+                    "bug",
+                )
             )
         )
 
-        if simple_bounded_code:
+        single_function_openers = (
+            "write a function",
+            "write a python function",
+            "create a function",
+            "create a python function",
+            "implement a function",
+            "implement a python function",
+            "define a function",
+            "define a python function",
+        )
+
+        bounded_single_function_generation = (
+            len(request) <= 400
+            and not has_complex_code_signal
+            and any(
+                opener in normalized_code_request
+                for opener in single_function_openers
+            )
+        )
+
+        if (
+            bounded_existing_function_debug
+            or bounded_single_function_generation
+        ):
             return 0
+
     # LOT H1: summarisation is a compact transformation task.
     # Keep it on rung 0; complexity must not promote it to a model
     # known to emit long planning content before the requested summary.

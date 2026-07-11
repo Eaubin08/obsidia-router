@@ -115,7 +115,7 @@ def test_simulation_a_small_medium_120b():
     ladder = [SMALL, MEDIUM, LARGE_120B]
     assert _model_for(ladder, _DIRECT_SHORT) == SMALL
     assert _model_for(ladder, _COMPARISON_SHORT) == SMALL
-    assert _model_for(ladder, _CODE_SIMPLE) == MEDIUM
+    assert _model_for(ladder, _CODE_SIMPLE) == SMALL
     assert _model_for(ladder, _CODE_COMPLEX) == LARGE_120B
     assert _model_for(ladder, _LONG_PROMPT) == MEDIUM
 
@@ -124,7 +124,7 @@ def test_simulation_b_120b_first_order_is_authority():
     ladder = [LARGE_120B, SMALL]
     # rung 0 -> index 0 -> 120b; rung 1+ clamped to the last index -> small
     assert _model_for(ladder, _DIRECT_SHORT) == LARGE_120B
-    assert _model_for(ladder, _CODE_SIMPLE) == SMALL
+    assert _model_for(ladder, _CODE_SIMPLE) == LARGE_120B
     assert _model_for(ladder, _CODE_COMPLEX) == SMALL
 
 

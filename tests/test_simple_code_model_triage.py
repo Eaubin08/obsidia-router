@@ -80,3 +80,31 @@ def test_simple_code_policy_does_not_change_summary_policy():
         prompt,
         answer_kind="structured_summary",
     ) == 0
+
+
+def test_code_request_with_tests_keeps_existing_escalation():
+    prompt = (
+        "Implement a Python rate limiter with tests."
+    )
+
+    result = select_model_for_request(
+        prompt,
+        _MODELS,
+        answer_kind="code_file",
+    )
+
+    assert result["selected_rung"] == 1
+    assert result["selected_model"] == "model/rung-one"
+
+
+def test_generic_code_answer_kind_without_explicit_code_request_stays_rung_one():
+    prompt = "Do the thing with the widget."
+
+    result = select_model_for_request(
+        prompt,
+        _MODELS,
+        answer_kind="code_file",
+    )
+
+    assert result["selected_rung"] == 1
+    assert result["selected_model"] == "model/rung-one"

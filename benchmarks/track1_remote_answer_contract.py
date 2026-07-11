@@ -201,7 +201,7 @@ def build_contract_prompt(
             else "Answer in English."
         )
         return (
-            "Final only. Return only the requested summary. "
+            "Final only. Plain text. Keep brief. Return only the requested summary. "
             "Follow the user's requested sentence count and format "
             "exactly. Do not add examples, a title, markdown, a "
             "preamble, analysis, planning, or commentary. "
