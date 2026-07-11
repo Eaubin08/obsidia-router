@@ -154,6 +154,15 @@ def main() -> int:
                     model=_model,
                     actual_model_used=_model,
                     output=_fw["text"],
+                    finish_reason=_fw.get("finish_reason"),
+                    final_content_present=_fw.get(
+                        "final_content_present"
+                    ),
+                    reasoning_content_present=_fw.get(
+                        "reasoning_content_present"
+                    ),
+                    truncated=_fw.get("truncated", False),
+                    remote_response_error=_fw.get("error"),
                 )
                 if metrics.records:
                     # LOT E: this record was created by run_one() BEFORE
@@ -166,6 +175,21 @@ def main() -> int:
                     _last["fireworks_tokens"] = _fw.get("total_tokens", 0)
                     _last["prompt_tokens"] = _fw.get("prompt_tokens", 0)
                     _last["completion_tokens"] = _fw.get("completion_tokens", 0)
+                    _last["finish_reason"] = _fw.get(
+                        "finish_reason"
+                    )
+                    _last["final_content_present"] = _fw.get(
+                        "final_content_present"
+                    )
+                    _last["reasoning_content_present"] = _fw.get(
+                        "reasoning_content_present"
+                    )
+                    _last["truncated"] = _fw.get(
+                        "truncated", False
+                    )
+                    _last["remote_response_error"] = _fw.get(
+                        "error"
+                    )
                     _last["remote_call_avoided"] = False
                     _last["selected_model"] = _model
                     _last["selected_rung"] = _sel["selected_rung"]
@@ -211,6 +235,17 @@ def main() -> int:
                 "actual_model_used":    rec.get("actual_model_used"),
                 "raw_prompt_chars":     rec.get("raw_prompt_chars"),
                 "system_prompt_chars":  rec.get("system_prompt_chars"),
+                "finish_reason":       rec.get("finish_reason"),
+                "final_content_present": rec.get(
+                    "final_content_present"
+                ),
+                "reasoning_content_present": rec.get(
+                    "reasoning_content_present"
+                ),
+                "truncated":           rec.get("truncated", False),
+                "remote_response_error": rec.get(
+                    "remote_response_error"
+                ),
             }
             answer = track1_answer(row)
             route_label = decision["route"]
@@ -241,6 +276,17 @@ def main() -> int:
                 "fireworks_tokens": rec.get("fireworks_tokens", 0),
                 "prompt_tokens": rec.get("prompt_tokens", 0),
                 "completion_tokens": rec.get("completion_tokens", 0),
+                "finish_reason": rec.get("finish_reason"),
+                "final_content_present": rec.get(
+                    "final_content_present"
+                ),
+                "reasoning_content_present": rec.get(
+                    "reasoning_content_present"
+                ),
+                "truncated": rec.get("truncated", False),
+                "remote_response_error": rec.get(
+                    "remote_response_error"
+                ),
                 "remote_call_avoided": rec.get(
                     "remote_call_avoided", True
                 ),

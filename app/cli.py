@@ -68,6 +68,15 @@ def run_one(raw: str, metrics: MetricsCollector, memory_index: dict,
             decision["contract_model_preference"] = None
             result = fireworks.chat(_fw_model, raw)
         output_text = result["text"]
+        decision["finish_reason"] = result.get("finish_reason")
+        decision["final_content_present"] = result.get(
+            "final_content_present"
+        )
+        decision["reasoning_content_present"] = result.get(
+            "reasoning_content_present"
+        )
+        decision["truncated"] = result.get("truncated", False)
+        decision["remote_response_error"] = result.get("error")
     elif decision["route"] == "local_solver":
         output_text = decision["solver_answer"]
     elif decision["route"] == "brody":

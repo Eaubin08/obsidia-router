@@ -98,8 +98,12 @@ def track1_answer(row: dict) -> str:
         )
 
     if route == "fireworks":
-        # Réponse modèle réelle : on la retourne intacte
-        # En dry-run, "[dry-run]" indique l'absence de clé API
+        # Only final content is eligible for the judged answer.
+        # Private reasoning is never exposed by the adapter.
+        if row.get("final_content_present") is False:
+            return "[error] Remote model produced no final answer."
+        if row.get("truncated"):
+            return "[error] Remote model completion was truncated."
         return output or "[error] No model response captured."
 
     # Routes V3B (ne sont normalement pas dans tasks.json principal, mais gestion défensive)
@@ -234,6 +238,17 @@ def build_receipts(track1_rows: list[dict], extra: dict | None = None) -> dict:
             ),
             "raw_prompt_chars": row.get("raw_prompt_chars"),
             "system_prompt_chars": row.get("system_prompt_chars"),
+            "finish_reason": row.get("finish_reason"),
+            "final_content_present": row.get(
+                "final_content_present"
+            ),
+            "reasoning_content_present": row.get(
+                "reasoning_content_present"
+            ),
+            "truncated": row.get("truncated", False),
+            "remote_response_error": row.get(
+                "remote_response_error"
+            ),
             "compression_applied": row.get("compression_applied"),
             "compressed_prompt_chars": row.get("compressed_prompt_chars"),
             # Remote answer contract labels (fireworks rows only)

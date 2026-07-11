@@ -100,17 +100,21 @@ def estimate_tokens(text: str) -> int:
 
 
 def extract_text(data: dict) -> str:
-    """Tolerant extraction of the answer text from an OpenAI-compatible
-    response. Reasoning models (e.g. gpt-oss) may return reasoning_content,
-    a null content, or hit the max_tokens cap mid-reasoning."""
+    """Return only final answer content.
+
+    Private ``reasoning_content`` is never eligible as a judged answer.
+    """
     choices = data.get("choices") or []
     if not choices:
         return "[error] no choices in response"
-    msg = choices[0].get("message") or {}
-    return (msg.get("content")
-            or msg.get("reasoning_content")
-            or "[empty completion]")
 
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+
+    if isinstance(content, str) and content.strip():
+        return content
+
+    return "[error] no final answer content"
 
 def chat(model: str, prompt: str, max_tokens: int = 512,
          system: str | None = None, timeout: float | None = None) -> dict:
@@ -199,12 +203,54 @@ def chat(model: str, prompt: str, max_tokens: int = 512,
     latency = time.perf_counter() - t0
 
     usage = data.get("usage", {})
+    choices = data.get("choices") or []
+    choice = choices[0] if choices else {}
+    message = choice.get("message") or {}
+
+    content = message.get("content")
+    final_content_present = (
+        isinstance(content, str) and bool(content.strip())
+    )
+
+    reasoning = message.get("reasoning_content")
+    reasoning_content_present = (
+        isinstance(reasoning, str) and bool(reasoning.strip())
+    )
+
+    finish_reason = choice.get("finish_reason")
+    completion_tokens = int(
+        usage.get("completion_tokens", 0) or 0
+    )
+
+    truncated = (
+        finish_reason == "length"
+        or (
+            max_tokens > 0
+            and completion_tokens >= max_tokens
+        )
+    )
+
+    response_error = None
+    if not final_content_present:
+        response_error = (
+            "truncated_before_final_content"
+            if truncated
+            else "no_final_content"
+        )
+    elif truncated:
+        response_error = "truncated_completion"
+
     return {
         "dry_run": False,
+        "error": response_error,
         "model": model,
         "text": extract_text(data),
         "prompt_tokens": usage.get("prompt_tokens", 0),
-        "completion_tokens": usage.get("completion_tokens", 0),
+        "completion_tokens": completion_tokens,
         "total_tokens": usage.get("total_tokens", 0),
         "latency_s": round(latency, 3),
+        "finish_reason": finish_reason,
+        "final_content_present": final_content_present,
+        "reasoning_content_present": reasoning_content_present,
+        "truncated": truncated,
     }

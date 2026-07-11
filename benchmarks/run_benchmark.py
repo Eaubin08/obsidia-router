@@ -1274,7 +1274,16 @@ def main() -> int:
             decision.update(route="fireworks", level=3,
                             model=_escalation_model,
                             actual_model_used=_escalation_model,
-                            output=_fw["text"])
+                            output=_fw["text"],
+                            finish_reason=_fw.get("finish_reason"),
+                            final_content_present=_fw.get(
+                                "final_content_present"
+                            ),
+                            reasoning_content_present=_fw.get(
+                                "reasoning_content_present"
+                            ),
+                            truncated=_fw.get("truncated", False),
+                            remote_response_error=_fw.get("error"))
             if metrics.records:
                 # LOT E: this record predates escalation (route was
                 # "brody"/"clarification_needed") — every triage field must
@@ -1292,6 +1301,21 @@ def main() -> int:
                 metrics.records[-1]["fireworks_tokens"] = _fw.get("total_tokens", 0)
                 metrics.records[-1]["prompt_tokens"] = _fw.get("prompt_tokens", 0)
                 metrics.records[-1]["completion_tokens"] = _fw.get("completion_tokens", 0)
+                metrics.records[-1]["finish_reason"] = _fw.get(
+                    "finish_reason"
+                )
+                metrics.records[-1]["final_content_present"] = _fw.get(
+                    "final_content_present"
+                )
+                metrics.records[-1]["reasoning_content_present"] = _fw.get(
+                    "reasoning_content_present"
+                )
+                metrics.records[-1]["truncated"] = _fw.get(
+                    "truncated", False
+                )
+                metrics.records[-1]["remote_response_error"] = _fw.get(
+                    "error"
+                )
                 metrics.records[-1]["remote_call_avoided"] = False
         routing_latency = round(time.perf_counter() - t0, 4)
 
@@ -1396,6 +1420,17 @@ def main() -> int:
                 "contract_model_preference": rec.get("contract_model_preference"),
                 "raw_prompt_chars": rec.get("raw_prompt_chars"),
                 "system_prompt_chars": rec.get("system_prompt_chars"),
+                "finish_reason": rec.get("finish_reason"),
+                "final_content_present": rec.get(
+                    "final_content_present"
+                ),
+                "reasoning_content_present": rec.get(
+                    "reasoning_content_present"
+                ),
+                "truncated": rec.get("truncated", False),
+                "remote_response_error": rec.get(
+                    "remote_response_error"
+                ),
             })
         mark = "OK " if ok else "FAIL"
         model_short = (decision.get("actual_model_used") or decision["model"] or "-").split("/")[-1]

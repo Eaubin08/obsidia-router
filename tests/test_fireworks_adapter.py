@@ -18,16 +18,31 @@ def test_standard_content_is_extracted():
     assert extract_text(data) == "hello"
 
 
-def test_reasoning_model_without_content_does_not_crash():
-    # gpt-oss style: content missing, reasoning_content present
-    data = {"choices": [{"message": {"reasoning_content": "thinking..."}}]}
-    assert extract_text(data) == "thinking..."
+def test_reasoning_content_is_never_exposed_as_final_answer():
+    data = {
+        "choices": [{
+            "message": {
+                "content": None,
+                "reasoning_content": "private reasoning",
+            }
+        }]
+    }
 
+    text = extract_text(data)
 
-def test_null_content_falls_back():
-    data = {"choices": [{"message": {"content": None}}]}
-    assert extract_text(data) == "[empty completion]"
+    assert text == "[error] no final answer content"
+    assert "private reasoning" not in text
 
+def test_null_content_reports_missing_final_answer():
+    data = {
+        "choices": [{
+            "message": {"content": None}
+        }]
+    }
+
+    assert extract_text(data) == (
+        "[error] no final answer content"
+    )
 
 def test_missing_choices_returns_error_text():
     assert extract_text({}) == "[error] no choices in response"

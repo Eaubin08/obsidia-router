@@ -68,6 +68,15 @@ class MetricsCollector:
             rec["fireworks_tokens"] = result.get("total_tokens", 0)
             rec["prompt_tokens"] = result.get("prompt_tokens", 0)
             rec["completion_tokens"] = result.get("completion_tokens", 0)
+            rec["finish_reason"] = result.get("finish_reason")
+            rec["final_content_present"] = result.get(
+                "final_content_present"
+            )
+            rec["reasoning_content_present"] = result.get(
+                "reasoning_content_present"
+            )
+            rec["truncated"] = result.get("truncated", False)
+            rec["remote_response_error"] = result.get("error")
             rec["latency_s"] = result.get("latency_s", 0.0)
             rec["dry_run"] = result.get("dry_run", False)
             if result.get("error"):
