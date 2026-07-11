@@ -40,6 +40,54 @@ def select_rung(request: str, answer_kind: str | None = None) -> int:
                   with no complexity signal.
     RUNG_LARGE  — code request flagged complex (explicit signal or long).
     """
+    # LOT H2: simple bounded code tasks stay on rung 0.
+    # Long or structurally complex code requests retain the existing
+    # escalation policy. This is driven only by request characteristics,
+    # never by task identifiers or expected answers.
+    if answer_kind == "code_file":
+        normalized_code_request = request.lower()
+
+        complex_code_signals = (
+            "architecture",
+            "multi-file",
+            "multiple files",
+            "several files",
+            "package",
+            "module",
+            "microservice",
+            "service",
+            "database",
+            "sql",
+            "schema",
+            "migration",
+            "async",
+            "asynchronous",
+            "concurrent",
+            "concurrency",
+            "thread",
+            "authentication",
+            "authorization",
+            "security",
+            "framework",
+            "distributed",
+            "production",
+            "deployment",
+            "docker",
+            "kubernetes",
+            "state machine",
+            "class hierarchy",
+        )
+
+        simple_bounded_code = (
+            len(request) <= 700
+            and not any(
+                signal in normalized_code_request
+                for signal in complex_code_signals
+            )
+        )
+
+        if simple_bounded_code:
+            return 0
     # LOT H1: summarisation is a compact transformation task.
     # Keep it on rung 0; complexity must not promote it to a model
     # known to emit long planning content before the requested summary.
