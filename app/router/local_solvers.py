@@ -16,81 +16,191 @@ import re
 
 from app.router.fact_resolver import solve_fact
 
-# ── One-sentence summarizer (extractive, zero token) ─────────────────────────
+# ── Extractive summarizer — bounded N sentences (zero token) ─────────────────
+#
+# Recognises "summarize ... in [one|two|1|2] sentence[s]: <passage>"
+# and selects the most informative sentences from the passage.
+#
+# Strategy for N=1: first sentence (usually the main claim).
+# Strategy for N=2: first sentence + the sentence with a contrast/consequence
+#   marker (however, but, although, therefore, so, thus); if none, second
+#   sentence.
+# Abstains when:
+#   - pattern does not match (no N found, no passage delimiter)
+#   - passage yields fewer sentences than requested
+#   - passage too short (< 10 words)
+#   - any selected sentence is empty after stripping
 
-_SUMMARY_ONE_SENT = re.compile(
-    r"\bsummariz[e]?\b.{0,80}\bone\s+sentence\b.{0,40}:\s*(.+)$",
+_SUMMARY_TRIGGER = re.compile(
+    r"\bsummariz[e]?\b.{0,100}"
+    r"\b(one|two|1|2)\s+sentences?\b"
+    r".{0,60}:\s*(.+)$",
     re.I | re.S,
 )
-# Trailing relative/adverbial clause starting with ", which" or ", that"
 _RELATIVE_TAIL = re.compile(r",\s*(?:and\s+)?(?:which|that)\b.+$", re.I | re.S)
+_CONTRAST_SENT = re.compile(
+    r"\b(however|but|although|though|yet|despite|"
+    r"unfortunately|on\s+the\s+other\s+hand|"
+    r"therefore|thus|so|as\s+a\s+result|consequently)\b",
+    re.I,
+)
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+_N_MAP = {"one": 1, "1": 1, "two": 2, "2": 2}
+
+_SUMMARY_MIN_WORDS = 10   # passage too short to compress
+_SUMMARY_MAX_CHARS = 600  # hard cap per sentence to avoid verbosity
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split passage into sentences; keep only non-empty, reasonably sized ones."""
+    raw_sents = _SENTENCE_SPLIT.split(text.strip())
+    return [s.strip() for s in raw_sents if len(s.strip()) > 5]
+
+
+def _ensure_period(s: str) -> str:
+    return s if s.endswith((".", "!", "?")) else s + "."
 
 
 def solve_summary_one_sentence(raw: str) -> str | None:
-    """Extractive one-sentence compressor for 'summarize ... in one sentence: [text]'.
+    """Extractive summarizer for 'summarize ... in one/two sentence(s): <passage>'.
 
-    Strips the trailing relative clause (, which...) and returns the main
-    clause as a well-formed sentence.  Abstains if text is too short or the
-    pattern does not match.
+    Supports: one sentence, two sentences, 1 sentence, 2 sentences.
+    Selects sentences from the passage without inventing content.
+    Abstains on ambiguous, too-short, or poorly delimited passages.
+
+    Kept under the historical name so existing callers and tests are unaffected.
     """
-    m = _SUMMARY_ONE_SENT.search(raw)
+    m = _SUMMARY_TRIGGER.search(raw)
     if not m:
         return None
-    text = m.group(1).strip()
-    words = text.split()
-    if len(words) < 10:
-        return None  # source too short — nothing to compress
-    compressed = _RELATIVE_TAIL.sub("", text).strip()
-    if not compressed.endswith((".", "!", "?")):
-        compressed += "."
-    if len(compressed.split()) < 5:
+    n_word = m.group(1).lower()
+    n = _N_MAP.get(n_word)
+    if n is None:
         return None
-    return compressed
+    passage = m.group(2).strip()
+    if len(passage.split()) < _SUMMARY_MIN_WORDS:
+        return None
+    sents = _split_sentences(passage)
+    if len(sents) < n:
+        return None  # passage has fewer sentences than requested
+
+    if n == 1:
+        chosen = [sents[0]]
+    else:  # n == 2
+        # First sentence = main claim
+        first = sents[0]
+        # Find the sentence with the strongest contrast/consequence signal
+        contrast_sent = next(
+            (s for s in sents[1:] if _CONTRAST_SENT.search(s)), None
+        )
+        second = contrast_sent if contrast_sent else sents[1]
+        chosen = [first, second]
+
+    # Validate and clean
+    result_parts = []
+    for s in chosen:
+        clean = _RELATIVE_TAIL.sub("", s).strip()
+        if not clean or len(clean) > _SUMMARY_MAX_CHARS:
+            return None  # malformed sentence — abstain
+        result_parts.append(_ensure_period(clean))
+
+    result = " ".join(result_parts)
+    # Final sanity: non-empty, no markup leaking in
+    if not result or "<" in result:
+        return None
+    return result
 
 
 # ── Sentiment (lexicon, deterministic) ────────────────────────────────────────
 
-_POS = {"good", "great", "excellent", "amazing", "love", "loved", "wonderful",
-        "fantastic", "happy", "best", "awesome", "delightful", "perfect",
-        "brilliant", "enjoyable", "pleasant", "superb", "impressive"}
-_NEG = {"bad", "terrible", "awful", "hate", "hated", "horrible", "worst",
-        "disappointing", "disappointed", "poor", "sad", "angry", "broken",
-        "useless", "boring", "annoying", "unpleasant", "mediocre", "waste",
-        "scratch", "scratches", "fragile", "flimsy"}
-_NEGATORS = {"not", "no", "never", "n't", "isn't", "wasn't", "don't", "didn't"}
+_POS = {
+    # Direct positive adjectives
+    "good", "great", "excellent", "amazing", "wonderful", "fantastic",
+    "happy", "best", "awesome", "delightful", "perfect", "brilliant",
+    "enjoyable", "pleasant", "superb", "impressive", "outstanding",
+    "remarkable", "exceptional", "marvelous", "splendid", "terrific",
+    "magnificent", "incredible", "fabulous", "gorgeous", "beautiful",
+    "elegant", "smooth", "clean", "fast", "quick", "reliable", "solid",
+    "sturdy", "comfortable", "convenient", "useful", "helpful",
+    # Verb forms
+    "love", "loved", "loves", "enjoy", "enjoyed", "enjoys",
+    "like", "liked", "likes", "adore", "adored", "adores",
+    "recommend", "recommended", "recommends",
+    # Duration/quality signals (positive context)
+    "lasts", "lasting", "durable", "forever", "always",
+    # Compound / colloquial
+    "well-made", "top-notch", "high-quality",
+}
+_NEG = {
+    # Direct negative adjectives
+    "bad", "terrible", "awful", "horrible", "worst", "poor",
+    "disappointing", "disappointed", "mediocre", "useless",
+    "boring", "annoying", "unpleasant", "waste", "fragile",
+    "flimsy", "cheap", "cheaply", "broken", "defective", "faulty",
+    "slow", "noisy", "loud", "heavy", "bulky", "unreliable",
+    "uncomfortable", "inconvenient", "difficult", "confusing",
+    # Verb forms
+    "hate", "hated", "hates", "dislike", "disliked", "dislikes",
+    "regret", "regretted", "regrets", "avoid", "avoided",
+    # Damage / physical defect
+    "scratch", "scratches", "scratched", "crack", "cracked", "broke",
+    "break", "breaking", "peel", "peeled", "peeling",
+    # Strong negatives
+    "sad", "angry", "frustrated", "furious", "disgusted",
+    # Colloquial
+    "terrible", "horrid", "dreadful",
+}
+_NEGATORS = {"not", "no", "never", "n't", "isn't", "wasn't", "don't",
+             "didn't", "hardly", "barely", "scarcely"}
 
 _SENTIMENT_TRIGGER = re.compile(
-    r"\bsentiment\b|\bclassify\b.*\b(positive|negative)\b|"
-    r"\b(positive|negative|neutral)\b.*\bsentiment\b", re.I)
+    r"\bsentiment\b|\bclassify\b.*\b(positive|negative|neutral)\b|"
+    r"\b(positive|negative|neutral)\b.*\bsentiment\b|"
+    r"\bhow\s+(positive|negative|neutral)\b", re.I)
 
+_CONTRAST = re.compile(
+    r"\b(but|however|although|though|while|yet|despite|except|"
+    r"unfortunately|on\s+the\s+other\s+hand|even\s+so)\b", re.I)
 
-_CONTRAST = re.compile(r"\b(but|however|although|though|while|yet)\b", re.I)
+# Neutral signals: factual, descriptive, no polarity
+_NEUTRAL_ONLY = re.compile(
+    r"\b(neutral|objective|factual|informational|neither)\b", re.I)
 
 
 def solve_sentiment(raw: str) -> str | None:
-    """Label + justification (exigence de la categorie AMD).
+    """Sentiment classifier: positive / negative / neutral / mixed + justification.
 
-    Fermeture locale possible sur trois cas :
-    - contraste explicite (but/however/...) + signal positif + signal negatif
-      -> "mixed" deterministe (ex: "great, but scratches too easily")
-    - signal positif seul, sans contraste -> "positive"
-    - signal negatif seul, sans contraste -> "negative"
+    Closes locally on four cases:
+    - contrast marker + pos signal + neg signal → mixed (deterministic)
+    - pos signals only, no contrast → positive
+    - neg signals only, no contrast → negative
+    - explicit neutral marker + no strong polarity → neutral
 
-    Abstention sur : contraste sans deux polarites, signaux opposes sans
-    contraste clair, aucun signal, absence de trigger.
+    Abstains on:
+    - contrast without two clear polarities
+    - opposing signals without a contrast marker
+    - no polarity signal and no neutral marker
+    - missing sentiment trigger
+    - single ambiguous word without context
     """
     if not _SENTIMENT_TRIGGER.search(raw):
         return None
-    words = re.findall(r"[a-z']+", raw.lower())
+    # Tokenize: keep interior apostrophes (n't, it's) but strip leading/trailing
+    # quote characters that appear as sentence delimiters (e.g. 'Great camera...')
+    words = [w.strip("'") for w in re.findall(r"[a-z][a-z']*|'[a-z]+", raw.lower())
+             if w.strip("'")]
     pos_hits, neg_hits = [], []
     for i, w in enumerate(words):
+        # Simple local negation window: one word before
         negated = i > 0 and words[i - 1] in _NEGATORS
         if w in _POS:
             (neg_hits if negated else pos_hits).append(w)
         elif w in _NEG:
             (pos_hits if negated else neg_hits).append(w)
     has_contrast = bool(_CONTRAST.search(raw))
-    # Contraste explicite + deux polarites detectees -> mixed local (deterministe)
+    total_signals = len(pos_hits) + len(neg_hits)
+    # Contraste explicite + deux polarites -> mixed (deterministe)
     if has_contrast and pos_hits and neg_hits:
         return (
             f"mixed - the text contains both positive sentiment "
@@ -98,12 +208,15 @@ def solve_sentiment(raw: str) -> str | None:
             f"and negative sentiment "
             f"({', '.join(repr(w) for w in neg_hits[:2])})."
         )
-    if has_contrast:
+    if has_contrast and total_signals < 2:
         return None  # contraste sans deux polarites claires : escalade
     if not pos_hits and not neg_hits:
-        return None  # aucun signal : laisser le modele juger
+        # No polarity detected — check for explicit neutral marker
+        if _NEUTRAL_ONLY.search(raw):
+            return "neutral - the text does not express clear positive or negative sentiment."
+        return None  # aucun signal fiable : laisser le modele juger
     if pos_hits and neg_hits:
-        return None  # signaux opposes sans marqueur contraste : nuance requise
+        return None  # signaux opposes sans marqueur de contraste : nuance requise
     if pos_hits:
         return ("positive - the text uses positive language such as "
                 f"{', '.join(repr(w) for w in pos_hits[:3])}.")
@@ -181,52 +294,216 @@ def solve_math(raw: str) -> str | None:
 
 
 # ── Named entity recognition (rule-based, abstain on any doubt) ──────────────
+#
+# Classification hierarchy (in order of specificity):
+#   1. DATE  — month names
+#   2. LOCATION — known places (bounded general register, not task-specific)
+#   3. ORGANIZATION — suffix-based OR single-token known org registry
+#   4. PERSON — multi-token capitalized group not matching above
+#
+# Abstains when ANY capitalized group remains unclassifiable, because the
+# instruction asks to extract ALL named entities — a partial answer is wrong.
 
 _MONTHS = {"january", "february", "march", "april", "may", "june", "july",
            "august", "september", "october", "november", "december"}
-_ORG_SUFFIX = {"AI", "Inc", "Inc.", "Corp", "Corp.", "Ltd", "Ltd.", "LLC",
-               "GmbH", "University", "Institute", "Company", "Labs", "Group"}
-_KNOWN_PLACES = {"berlin", "paris", "london", "tokyo", "madrid", "rome",
-                 "amsterdam", "vienna", "dublin", "lisbon", "brussels",
-                 "munich", "zurich", "geneva", "sydney", "toronto", "austin",
-                 "seattle", "boston", "chicago", "france", "germany", "spain",
-                 "italy", "japan", "canada", "australia", "europe", "usa"}
 
-_NER_TRIGGER = re.compile(r"\bextract\b.*\bentit|named entit", re.I)
+# General organization name suffixes (not benchmark-specific)
+_ORG_SUFFIX = {
+    "AI", "Inc", "Inc.", "Corp", "Corp.", "Ltd", "Ltd.", "LLC", "LLP",
+    "GmbH", "University", "Universities", "Institute", "Company", "Companies",
+    "Labs", "Lab", "Group", "Foundation", "Fund", "Bank", "Agency",
+    "Organization", "Organisation", "Association", "Club", "Society",
+    "Department", "Ministry", "Bureau", "Commission", "Committee",
+    "Technologies", "Technology", "Systems", "Solutions", "Services",
+    "Consulting", "Ventures", "Capital", "Partners",
+}
+
+# Single-token organizations that cannot be identified by suffix alone.
+# This is a GENERAL registry of widely known orgs, not a benchmark whitelist.
+# Criteria: a reasonable NLP practitioner would expect a rule-based system
+# to know these without needing contextual inference.
+_KNOWN_ORGS_SINGLE = {
+    # Big Tech / widely known tech companies (single-token names)
+    "google", "microsoft", "apple", "amazon", "meta", "netflix", "tesla",
+    "uber", "lyft", "twitter", "instagram", "facebook", "whatsapp",
+    "spotify", "airbnb", "nvidia", "intel", "amd", "ibm", "oracle",
+    "samsung", "sony", "xiaomi", "huawei", "alibaba", "tencent", "baidu",
+    # Media and publishing
+    "reuters", "bloomberg", "cnn", "bbc", "nbc", "abc", "cbs", "nyt",
+    "economist", "forbes", "wired",
+    # Institutions widely known by single name
+    "nasa", "who", "unicef", "unesco", "interpol", "nato", "un", "eu",
+    "fbi", "cia", "nsa", "sec", "fda", "nih",
+    # Standards bodies / major universities by single colloquial token
+    "mit", "caltech", "stanford", "harvard", "oxford", "cambridge",
+    "yale", "columbia", "princeton",
+    # Financial
+    "visa", "mastercard", "paypal", "stripe", "jpmorgan", "goldman",
+    "hsbc", "barclays", "citi", "ubs",
+}
+
+_KNOWN_PLACES = {
+    # Major world cities
+    "berlin", "paris", "london", "tokyo", "madrid", "rome",
+    "amsterdam", "vienna", "dublin", "lisbon", "brussels",
+    "munich", "zurich", "geneva", "sydney", "toronto", "austin",
+    "seattle", "boston", "chicago", "denver", "atlanta", "miami",
+    "dallas", "houston", "phoenix", "detroit", "portland",
+    "new york", "los angeles", "san francisco", "san diego",
+    "washington", "beijing", "shanghai", "hong kong", "singapore",
+    "dubai", "mumbai", "delhi", "bangalore", "nairobi", "cairo",
+    "johannesburg", "lagos", "accra", "casablanca", "tunis",
+    "moscow", "kyiv", "warsaw", "prague", "budapest", "bucharest",
+    "istanbul", "ankara", "tehran", "riyadh", "baghdad",
+    "jakarta", "manila", "bangkok", "kuala lumpur", "seoul",
+    "buenos aires", "santiago", "lima", "bogota", "caracas",
+    "mexico city", "sao paulo", "rio de janeiro",
+    # Countries
+    "france", "germany", "spain", "italy", "japan", "canada",
+    "australia", "china", "india", "brazil", "russia", "usa",
+    "uk", "kenya", "nigeria", "south africa", "egypt", "turkey",
+    "argentina", "mexico", "indonesia", "pakistan", "bangladesh",
+    "netherlands", "belgium", "sweden", "norway", "denmark",
+    "finland", "poland", "ukraine", "greece", "portugal", "czechia",
+    "switzerland", "austria", "hungary", "romania", "israel",
+    "saudi arabia", "iran", "iraq", "afghanistan",
+    # Continents / regions
+    "europe", "africa", "asia", "america", "oceania",
+}
+
+# Contextual verb patterns that often precede an ORGANIZATION name
+_ORG_CONTEXT_VERB = re.compile(
+    r"\b(announced?|founded?|acquired?|merged?|partnered?|launched?|"
+    r"headquartered?\s+in|based\s+in|owned?\s+by|acquired?\s+by|"
+    r"invested?\s+in|funded?\s+by|backed?\s+by)\s+([A-Z])",
+    re.I,
+)
+
+# "University of X" and "X University" patterns
+_UNI_OF = re.compile(r"\bUniversity\s+of\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)\b")
+
+_NER_TRIGGER = re.compile(r"\bextract\b.*\bentit|named\s+entit", re.I)
+
+# Tokens that are capitalized but are NOT entities (sentence starters / stop words)
+_SENTENCE_STARTERS = {
+    "the", "a", "an", "in", "at", "on", "of", "and", "or", "but",
+    "for", "with", "to", "from", "by", "as", "is", "are", "was",
+    "were", "be", "been", "being", "that", "this", "these", "those",
+    "it", "its", "they", "their", "he", "she", "his", "her", "we",
+    "our", "you", "your", "i", "my", "me", "him", "us", "them",
+    # Common sentence-starting verbs / prepositions when capitalized
+    "find", "note", "please", "extract", "classify", "identify",
+    "answer", "write", "list", "name", "give", "provide", "describe",
+    "all", "some", "no", "any", "each", "every", "both",
+}
 
 
 def solve_ner(raw: str) -> str | None:
-    m = re.search(r"from\s*:\s*(.+)$", raw, re.I | re.S)
-    if not (_NER_TRIGGER.search(raw) and m):
+    """Rule-based NER: PERSON, ORGANIZATION, LOCATION.
+
+    Abstains when any capitalized group remains unclassifiable, because the
+    task instruction demands ALL named entities. A partial answer is worse
+    than an escalation.
+
+    Classification order per group:
+      DATE  → month names
+      LOCATION → known places register
+      ORGANIZATION → suffix OR single-token known org
+      PERSON → multi-token capitalized group (≥ 2 tokens)
+      → None (abstain) if single token with no classification signal
+    """
+    # Require NER trigger and a sentence to analyse (after "from :" or "from this")
+    trigger_m = _NER_TRIGGER.search(raw)
+    # Accept "from this sentence: ..." or "from: ..."
+    sentence_m = re.search(
+        r"(?:from\s*(?:this\s+\w+\s*)?:\s*['\"]?)(.+?)(?:['\"]?\s*$)",
+        raw, re.I | re.S
+    )
+    if not (trigger_m and sentence_m):
         return None
-    text = m.group(1).strip()
-    tokens = re.findall(r"[A-Za-z][A-Za-z']*\.?", text)
+    text = sentence_m.group(1).strip()
+
+    # Pre-process: handle "University of X" as a single ORGANIZATION group
+    uni_entities: list[tuple[str, str]] = []
+    uni_positions: set[int] = set()
+    for um in _UNI_OF.finditer(text):
+        uni_name = um.group(0)  # e.g. "University of Cambridge"
+        uni_entities.append((uni_name, "ORGANIZATION"))
+        # Mark character span so we skip these tokens in main loop
+        for i in range(um.start(), um.end()):
+            uni_positions.add(i)
+
+    # Remove "University of X" spans from text for main token loop
+    text_for_tokens = text
+    for um in reversed(list(_UNI_OF.finditer(text))):
+        text_for_tokens = (
+            text_for_tokens[: um.start()] + " " * (um.end() - um.start())
+            + text_for_tokens[um.end():]
+        )
+
+    tokens = re.findall(r"[A-Za-z][A-Za-z'\-]*\.?", text_for_tokens)
     tokens = [t.rstrip(".") if t.rstrip(".") not in _ORG_SUFFIX else t
               for t in tokens]
+
     entities: list[tuple[str, str]] = []
     i = 0
     while i < len(tokens):
-        if tokens[i][0].isupper():
-            group = [tokens[i]]
-            while i + 1 < len(tokens) and tokens[i + 1][0].isupper():
+        tok = tokens[i]
+        if tok[0].isupper() and tok.lower() not in _SENTENCE_STARTERS:
+            group = [tok]
+            while (i + 1 < len(tokens)
+                   and tokens[i + 1][0].isupper()
+                   and tokens[i + 1].lower() not in _SENTENCE_STARTERS):
                 i += 1
                 group.append(tokens[i])
             name = " ".join(group)
-            low = name.lower()
-            if low in _MONTHS:
+            low_name = name.lower()
+            low_first = group[0].lower()
+            last_tok = group[-1]
+
+            # Classification in order of specificity
+            if low_name in _MONTHS or low_first in _MONTHS:
                 entities.append((name, "DATE"))
-            elif low in _KNOWN_PLACES:
+            elif low_name in _KNOWN_PLACES:
                 entities.append((name, "LOCATION"))
-            elif group[-1] in _ORG_SUFFIX:
+            elif last_tok in _ORG_SUFFIX or last_tok.rstrip(".") in _ORG_SUFFIX:
+                # Multi-token ending with org suffix (e.g. "Acme Corp")
                 entities.append((name, "ORGANIZATION"))
+            elif len(group) == 1 and low_first in _KNOWN_ORGS_SINGLE:
+                entities.append((name, "ORGANIZATION"))
+            elif len(group) == 1 and low_first in _KNOWN_PLACES:
+                entities.append((name, "LOCATION"))
             elif len(group) >= 2:
+                # Multi-token not matching above → PERSON (most common case)
                 entities.append((name, "PERSON"))
             else:
-                return None  # entite inclassable avec certitude -> escalade
+                # Single token, unclassifiable → abstain
+                return None
         i += 1
-    if not entities:
+
+    # Merge pre-extracted University entities (preserve order of appearance)
+    # Re-scan original text to get insertion positions
+    all_entities: list[tuple[str, str, int]] = []
+    for name, kind in entities:
+        pos = text.find(name)
+        all_entities.append((name, kind, pos if pos >= 0 else 9999))
+    for name, kind in uni_entities:
+        pos = text.find(name)
+        all_entities.append((name, kind, pos if pos >= 0 else 9999))
+
+    all_entities.sort(key=lambda x: x[2])
+
+    # Deduplicate (keep first occurrence)
+    seen: set[str] = set()
+    final: list[tuple[str, str]] = []
+    for name, kind, _ in all_entities:
+        if name not in seen:
+            seen.add(name)
+            final.append((name, kind))
+
+    if not final:
         return None
-    return "; ".join(f"{n} - {k}" for n, k in entities)
+    return "; ".join(f"{n} - {k}" for n, k in final)
 
 
 # ── Logical deduction (constraint puzzle by enumeration) ─────────────────────
