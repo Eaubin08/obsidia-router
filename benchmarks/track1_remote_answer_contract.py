@@ -160,15 +160,21 @@ def select_max_tokens(answer_kind: str) -> int:
     return _BUDGETS.get(answer_kind, 850)
 
 
-def select_model_preference() -> str:
-    """Regle AMD : ne jamais appeler un modele hors ALLOWED_MODELS (publie
-    au launch day, injecte par le harness). Le defaut calibre n'est utilise
-    que s'il figure dans la liste ; sinon premier modele autorise."""
-    import os
-    allowed = [m.strip() for m in os.environ.get("ALLOWED_MODELS", "").split(",")
-               if m.strip()]
-    if allowed:
-        return _DEFAULT_MODEL if _DEFAULT_MODEL in allowed else allowed[0]
+def select_model_preference(allowed_models: list[str] | None = None) -> str:
+    """Informative default model name for contract metadata/telemetry only.
+
+    LOT C: no environment parsing here — ALLOWED_MODELS parsing is owned
+    exclusively by app.adapters.fireworks.allowed_models(); callers that
+    have a resolved ladder pass it in explicitly.
+
+    LOT D: this value does NOT select the model actually sent to
+    fireworks.chat(). The model that is really called is decided once,
+    centrally, by app.router.model_triage.select_model_for_request() inside
+    decide(). This field stays for contract telemetry / receipts / back-
+    compat only and must never be treated as competing authority.
+    """
+    if allowed_models:
+        return _DEFAULT_MODEL if _DEFAULT_MODEL in allowed_models else allowed_models[0]
     return _DEFAULT_MODEL
 
 
@@ -256,12 +262,20 @@ def _collect_source_signals(
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def build_remote_answer_contract(request: str, route: str = "fireworks") -> dict:
+def build_remote_answer_contract(
+    request: str, route: str = "fireworks",
+    allowed_models: list[str] | None = None,
+) -> dict:
     """Build a remote_answer_contract from request signals alone.
 
     task_id is deliberately absent — it must never drive answer_kind,
     max_tokens, model_preference, or contract_prompt. It may only appear
     in telemetry/receipts added by the caller.
+
+    allowed_models, when passed, only informs the model_preference
+    telemetry field (see select_model_preference docstring — LOT C/D). It
+    has no effect on max_tokens, contract_prompt, or the model actually
+    called.
     """
     language = detect_language(request)
     missing_referent = detect_missing_referent(request)
@@ -270,7 +284,7 @@ def build_remote_answer_contract(request: str, route: str = "fireworks") -> dict
     ambiguity = classify_ambiguity(request)
     target_words = select_target_words(answer_kind)
     max_tokens = select_max_tokens(answer_kind)
-    model_preference = select_model_preference()
+    model_preference = select_model_preference(allowed_models)
     code_only = answer_kind == "code_file"
     contract_prompt = build_contract_prompt(
         answer_kind, missing_referent, code_only, language, target_words

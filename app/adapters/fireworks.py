@@ -63,10 +63,34 @@ def _default_timeout() -> float:
 
 
 def allowed_models() -> list[str] | None:
+    """Single parsing authority for ALLOWED_MODELS (LOT C).
+
+    Every other module that needs the allowlist must call this function
+    instead of reading os.environ directly.
+
+    Doctrine:
+      - absent or blank    -> None (caller falls back to its own default
+                               ladder; never an empty list)
+      - non-empty          -> comma-split, each entry stripped, blank
+                               entries dropped, order preserved exactly as
+                               provided (index 0 stays the harness's stated
+                               cheapest/first-choice model)
+      - duplicate entries  -> only the first occurrence is kept (stable
+                               de-dup); a name repeated later never
+                               re-promotes its rung or reorders the ladder
+    """
     raw = os.environ.get("ALLOWED_MODELS", "").strip()
     if not raw:
         return None
-    return [m.strip() for m in raw.split(",") if m.strip()]
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for entry in raw.split(","):
+        name = entry.strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        ordered.append(name)
+    return ordered or None
 
 
 def estimate_tokens(text: str) -> int:
