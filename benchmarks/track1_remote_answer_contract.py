@@ -27,7 +27,7 @@ _EXCLUDED_MODELS: dict[str, str] = {
 # ── Budget table (balanced_compact_v3 — aggressive) ─────────────────────────
 #
 # quality_discovery_v1 natural completion (gpt-oss-120b, unconstrained):
-#   comparison : 561 tokens  → v3 ceiling: 320
+#   comparison : live 320-token cap exhausted -> quality rollback: 420
 #   summary    : 611 tokens  → v3 ceiling: 420
 #   code_file  : 1155 tokens → v3 ceiling: 620
 #
@@ -35,7 +35,7 @@ _EXCLUDED_MODELS: dict[str, str] = {
 # Accuracy boundary: if quality degrades, roll back per kind by +100.
 
 _BUDGETS: dict[str, int] = {
-    "comparison":         320,
+    "comparison":         420,
     "structured_summary": 420,
     "code_file":          620,
     "direct_answer":      320,
@@ -204,9 +204,11 @@ def build_contract_prompt(
     # target_words is kept in the contract metadata only.
     # Generic molds only: no hidden-task overfit.
     if answer_kind == "comparison":
-        shape_instr = ("Final only. Plain labels: Option A:, Option B:, Trade-off:. "
-                       "One short sentence per label. "
-                       "No title/table/markdown/preamble/analysis. ")
+        shape_instr = (
+            "Final only. Plain labels: A:, B:, Trade-offs:, "
+            "Recommendation:. Concise plain text. "
+            "No title/table/markdown/preamble/analysis. "
+        )
     else:
         shape_instr = ("Final only. Plain text. Keep brief. "
                        "No title/table/markdown/preamble/analysis. ")

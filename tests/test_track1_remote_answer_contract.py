@@ -113,7 +113,7 @@ def test_output_shape_compact_for_comparison():
 # ── select_max_tokens ────────────────────────────────────────────────────────
 
 def test_budget_comparison():
-    assert select_max_tokens("comparison") == 320
+    assert select_max_tokens("comparison") == 420
 
 
 def test_budget_structured_summary():
@@ -234,7 +234,7 @@ def test_contract_comparison_full():
         "analyse et compare ces deux strategies de cache distribue et derive la complexite"
     )
     assert c["answer_kind"] == "comparison"
-    assert c["max_tokens"] == 320
+    assert c["max_tokens"] == 420
     assert c["model_preference"] == _DEFAULT_MODEL
     assert c["missing_referent"] is True
     assert "missing_referent_detected" in c["source_signals"]
@@ -317,7 +317,7 @@ def test_live_open_reasoning_classified_as_comparison():
     assert c["answer_kind"] == "comparison", (
         f"Expected 'comparison', got '{c['answer_kind']}'"
     )
-    assert c["max_tokens"] == 320
+    assert c["max_tokens"] == 420
 
 
 def test_live_code_open_contract():
@@ -379,12 +379,15 @@ def test_prose_prompt_final_only():
 
 
 def test_prose_prompt_comparison_generic_labels():
-    """v3g2: comparison utilise des labels génériques Option A/B, pas métier."""
-    p = build_contract_prompt("comparison", False, False, "en", 60)
-    assert "Plain labels" in p
-    assert "Option A:" in p
-    assert "Option B:" in p
-    assert "Trade-off:" in p
+    """Comparison keeps generic non-domain-specific labels."""
+    prompt = build_contract_prompt(
+        "comparison", False, False, "en", 60
+    )
+
+    assert (
+        "Plain labels: A:, B:, Trade-offs:, Recommendation:."
+        in prompt
+    )
 
 
 def test_prose_prompt_no_domain_specific_labels():
@@ -406,10 +409,14 @@ def test_prose_prompt_summary_direct_plain_text():
         assert "Trade-off:" not in p
 
 
-def test_prose_prompt_one_short_sentence():
-    """v3g: contract_prompt prose contient 'One short sentence per label'."""
-    p = build_contract_prompt("comparison", False, False, "en", 60)
-    assert "One short sentence per label" in p
+def test_prose_prompt_comparison_has_unambiguous_shape():
+    prompt = build_contract_prompt(
+        "comparison", False, False, "en", 60
+    )
+
+    assert "Trade-offs:" in prompt
+    assert "Recommendation:" in prompt
+    assert "One short sentence per label" not in prompt
 
 
 def test_prose_prompt_no_title():
@@ -460,7 +467,7 @@ def test_prose_prompt_ultra_short():
 
 def test_budget_balanced_compact_v3():
     """Vérification globale des budgets balanced_compact_v3."""
-    assert select_max_tokens("comparison") == 320
+    assert select_max_tokens("comparison") == 420
     assert select_max_tokens("structured_summary") == 420
     assert select_max_tokens("code_file") == 620
     assert select_max_tokens("direct_answer") == 320
