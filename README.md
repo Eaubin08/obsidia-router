@@ -1,97 +1,181 @@
-# Obsidia Router — Semantic Routing Before Inference
+# Obsidia Router — Structure Before Inference
 
-> A deterministic pre-inference layer that decides whether a model is needed
-> **before** spending tokens.
+> Most routers optimize **which** model to call.
+> Obsidia first decides **whether a model call is necessary**.
 
 **Track 1** (token-efficient agent) — AMD Developer Hackathon: ACT II.
-Narrative extends to Track 3: this router is a visible slice of a larger
-cognitive OS where the LLM is an **organ**, not the brain.
+The narrative extends to **Track 3**: this router is the public, measurable
+slice of a larger proprietary pre-inference governance stack, where the LLM
+is an **organ**, not the brain.
 
-> **100% measured accuracy across the published Track 1 validation surfaces.**
->
-> **Internal routing accuracy: 100% — 18/18 routes correct.**
->
-> Most routers optimize which model to call. Obsidia first decides **whether a model call is necessary**.
-
-## Track 1 measured results
-
-| Validation surface | Result | Status |
-|---|---:|---|
-| AMD practice categories | 8/8 | 100% measured |
-| Internal Track 1 routing benchmark | 18/18 | 100% route accuracy |
-| V3B stack routes | 15/15 | 100% closed |
-| Official-runner live sample (5 tasks) | 4 local / 1 remote | ≈389 tokens |
-| Hidden AMD judge | Not yet known | External evaluation |
-
-> These are repository-measured validation results. They do not claim the
-> hidden AMD judge score in advance. The hidden official AMD evaluation
-> remains external to these repository metrics.
-
-Evidence levels used throughout this repo:
-`PRACTICE` (AMD practice categories) · `INTERNAL_DRY` (internal benchmark,
-zero token) · `LIVE_SAMPLE` (real Fireworks calls on a 5-task sample) ·
-`OFFICIAL_HIDDEN` (the AMD judge — unknown until executed).
-
-Track 3 metric claims: [docs/TRACK3_METRICS.md](docs/TRACK3_METRICS.md)
-
-## Submission assets
-
-One repo, two tracks. Track 1 requires the Docker harness; Track 3 does not —
-it reads the same measured router as an innovation narrative.
-
-**Videos**
-
-- **Primary demo video — Obsidia Router**: `<ROUTER_VIDEO_URL>`
-  (submitted as the main hackathon demo video)
-- Track 3 companion video — Obsidia Cognitive OS: `<COGNITIVE_OS_VIDEO_URL>`
-  (vision companion; not the primary demo)
-
-**Slide decks**
-
-- **Primary deck — Govern Before Inference**: `<GOVERN_BEFORE_INFERENCE_PDF_URL>`
-  (Track 1 benchmark + Track 3 architecture)
-- Companion vision deck — Obsidia Structure Before Inference:
-  `<STRUCTURE_BEFORE_INFERENCE_PDF_URL>` (broader Cognitive OS narrative)
-
-**Documentation**
-
-- Track 1 reproducible path: [docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md)
-- Benchmark matrix (SAFE vs LIVE spend): [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
-- Track 3 / Unicorn narrative: [docs/TRACK3_SUBMISSION.md](docs/TRACK3_SUBMISSION.md)
-- Demo script (safe by default): [docs/DEMO.md](docs/DEMO.md)
-
-A hosted live demo is optional and not currently required; the reproducible
-paths above cover both tracks.
-
-## The thesis
-
-Classic agents route **between** models. Obsidia first decides **if** a model
-is necessary. Every request is compiled into a structured intent
+A large LLM must infer; Obsidia can often **verify, route, hold, deny, or
+answer before inference**. Every request is compiled into a structured intent
 (UnifiedInputIR), checked against deterministic gates and invariants, and only
 then — if the structure is not enough — escalated to the cheapest sufficient
-Fireworks model.
+Fireworks model, with a compressed prompt and a bounded completion budget.
+
+This repository is not a claim that Obsidia is a bigger or better LLM. It is
+a demonstration that a deterministic governance layer placed *before*
+inference reduces both the **number** of remote calls and the **cost** of the
+calls that remain — without ever closing a task it cannot actually solve.
+
+## What is being demonstrated
+
+- **Not just a router**: routing is one layer of a pre-inference pipeline
+  (structure → gates → local capability → escalation → bounded output).
+- **Not just prompt compression**: compression is the last optimization,
+  applied only to the calls that survive every earlier layer.
+- **A proprietary governance stack, public cut**: the full Obsidia
+  architecture (Brody, complete memory, Obsidure, Sigma, Lean proofs, domain
+  bridges, the X108 kernel runtime) is not fully exposed or activated here.
+  The public cut is deliberately limited to what Track 1 evaluates: routing,
+  gates, local solvers, the official runner, the Fireworks adapter, and the
+  Docker harness.
+- **Proof by staged evaluation**: each validation stage below demonstrates a
+  different property. No single number carries the claim; the ladder does.
+
+## Evidence ladder
+
+| Stage | Command / surface | Result | What it proves |
+|---|---|---|---|
+| Pytest suite | `python -m pytest -q` | **1230 passed, 3 skipped** | Static + dynamic invariants hold across the whole public cut. |
+| AMD practice grader | `python benchmarks/answer_accuracy.py` | **8/8 PASS, 0 tokens, 0/8 remote** | The 8 practice categories close locally with correct answers. |
+| Official runner path | `scripts/run_official.py` + `validate_output.py` | **8/8, 0 tokens, schema STRICT PASS** | The exact judged code path produces valid output with zero spend. |
+| Docker GHCR public run | `docker run ghcr.io/eaubin08/obsidia-router:track1-0a5fc69` | **8 tasks, 0 tokens, 0/8 remote, exit 0** | The publicly pullable image reproduces the official path end-to-end. |
+| Internal routing benchmark | `run_benchmark.py --track1-official --stack-v3b` | **18/18 routes, 0 tokens, 5584 est. tokens saved** | Route decisions are correct without spending anything. |
+| Dynamic bounded invariants | `tests/test_dynamic_invariants.py` | **180/180 held, 0 tokens, ≈0.073 ms/decision** | Generated rephrasings never bypass gates or leak tokens. |
+| Dynamic dirty invariants | dirty phase V2 | **160/160 held, 0 tokens, ≈0.082 ms/decision** | Noise, typos and injection attempts do not break governance. |
+| V3B stack benchmark | stack routes | **15/15, 0 remote tokens, KX108_ONLY** | Stack surfaces (Brody/Obsidure/Lean/domains) route correctly with `real_action=false`, `memory_write=false`, `kernel_mutation=false`. |
+| Frontier dry benchmark | `run_frontier_benchmark.py` | **15 local / 12 fireworks / 8 governed, false closures = 0** | Unsupported cases escalate or abstain — no over-closing to save tokens. |
+| Frontier live compression | `run_frontier_benchmark.py --live` | **4265 → 2650 → 2438 live tokens** | Remote calls that remain are progressively cheaper without route changes. |
+| Hidden AMD judge | external | **Unknown** | The official hidden evaluation is external; repository metrics are evidence surfaces, not a leaderboard claim. |
+
+The 3 skipped tests are conditional integration/report tests that only run
+when certain generated `results/` files are present — not a regression.
+
+## Architecture layers
 
 ```
-natural language
-  → IR (intent / layer / action / risk / needs)        deterministic
-  → gates (DENY > HOLD > CLARIFY > ALLOW)               deterministic
-  → topic routing                                       deterministic
-  → inference level decision:
-      Level 0  NO MODEL   status, HOLD, deny, clarification, commands-only
-      Level 1  BRODY      local proprietary LLM organ (stubbed in this cut)
-      Level 2  MEMORY     corpus lookup, no generation
-      Level 3  FIREWORKS  cheapest sufficient model on the ladder
+request
+  → structure     (UnifiedInputIR: intent / layer / action / risk / needs)
+  → gates         (DENY > HOLD > CLARIFY > ALLOW — deterministic)
+  → local capability   (deterministic solvers, zero tokens)
+  → memory / Brody interface   (public stubs in this cut)
+  → Fireworks only if needed   (cheapest sufficient model, compressed prompt,
+                                bounded completion budget)
+  → bounded output / metrics   (strict contract, receipts, replay surfaces)
 ```
+
+- **UnifiedInputIR** — every natural-language request is compiled into a
+  structured intent before anything else happens.
+- **Gates** — world actions (push, deploy, rm -rf, bypass attempts) are held
+  or denied at level 0. A model is never consulted about whether to act.
+- **Local deterministic solvers** — factual, math, sentiment, NER, code
+  debugging, logic tasks that match a verified fingerprint close locally at
+  zero tokens.
+- **Memory / Brody** — public interface stubs; the full private layers stay
+  out of this cut.
+- **Fireworks escalation** — only when structure is insufficient. The prompt
+  is stripped of noise (`track1_prompt_compressor`), the completion budget is
+  capped per answer kind (`build_compact_override`), and the model comes from
+  the harness-provided ladder.
+- **Output contract** — strict `[{"task_id", "answer"}]` projection; internal
+  telemetry never leaks into the judged output.
+- **Global Obsidia stack** — not fully active in this repository (see
+  "Real vs stubbed" below).
 
 A good answer is not always a long answer. It can be: *I don't know*, *X is
 missing*, *action not authorized*, *clarification required*, *HOLD*,
 *commands-only*. Zero tokens spent, frame respected.
 
-## Parametric efficiency
+## Track 1 compliance
 
-Track 1 measures token efficiency. Obsidia also reports parametric efficiency: how much task competence can be produced before carrying or calling a large learned model.
+| Requirement | Status |
+|---|---|
+| Publicly pullable image | ✅ `ghcr.io/eaubin08/obsidia-router:track1` — anonymous pull verified |
+| linux/amd64 | ✅ built with `--platform linux/amd64` |
+| Reads `/input/tasks.json` at startup | ✅ default official runner path |
+| Writes `/output/results.json` before exit | ✅ verified in GHCR run |
+| Strict output schema `[{"task_id","answer"}]` | ✅ `TRACK1_OUTPUT_VALIDATION = PASS` |
+| Exit code 0 on success | ✅ verified |
+| Runtime < 10 min, startup < 60 s, per-answer < 30 s | ✅ practice run completes in seconds; per-call timeouts bounded by the runtime budget |
+| Answers in English | ✅ enforced by contract prompts |
+| No hardcoded / cached answers | ✅ answers derive from request signals; no task-ID branching, no answer tables |
+| Env vars from harness | ✅ `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, `ALLOWED_MODELS` read dynamically |
+| All Fireworks calls via `FIREWORKS_BASE_URL` | ✅ single adapter authority (`app/adapters/fireworks.py`) |
+| Models only from `ALLOWED_MODELS` | ✅ single parsing authority; no hardcoded model IDs in the call path |
+| Local solvers count zero tokens | ✅ 0 tokens on all local closures |
+| ZERO_API_CALLS valid if accuracy passes | ✅ practice: 8/8 correct at 0 API calls |
+| No secrets in image | ✅ selective COPY + `.dockerignore`; no `.env`, keys, results or receipts |
 
-This public Track 1 cut embeds 0 GB of learned model weights. Brody is stubbed, memory is minimal, and Fireworks is used only when the deterministic structure cannot close the task locally.
+## Track 1 measured results
+
+| Surface | Result | Tokens |
+|---|---:|---:|
+| AMD practice (grader) | 8/8 PASS | 0 |
+| Official Docker run (GHCR) | 8/8, schema PASS | 0 |
+| Internal routing benchmark | 18/18 (100%) | 0 (est. 5584 saved) |
+| V3B stack routes | 15/15 | 0 |
+| Dynamic invariants | 180/180 + 160/160 | 0 |
+| Frontier dry | 15 local / 12 fireworks / 8 governed, false closures = 0 | 0 |
+| Frontier live (before → after compression) | routes unchanged, false closures = 0 | 4265 → 2650 → 2438 |
+| Hidden AMD judge | unknown / external | — |
+
+Frontier live detail: 9 real paid Fireworks calls in the observed live run,
+mean ≈271 tokens per remote call, median 275. Level-0 rate on the internal
+benchmark: 61%.
+
+## Why the frontier matters
+
+If every task closed locally, the result would look like hardcoding or
+overfit. The 35-task frontier suite proves the opposite:
+
+- **Unsupported and open-world cases still escalate** (12 tasks go to
+  Fireworks) **or stay governed** (8 tasks are held/denied/clarified).
+- **`false_local_closures = 0` is the safety proof**: no local solver ever
+  answered a task outside its verified fingerprint just to save tokens.
+- **Correct abstentions are a feature, not a failure** (10 correct local-only
+  abstentions): the router knows the boundary of its own competence.
+- Break-even complexity level: 4 — below it, deterministic structure wins;
+  above it, remote inference is genuinely needed and is called with a
+  compressed prompt and a capped budget.
+
+The live compression sequence (4265 → 2650 → 2438 tokens) shows the two
+distinct savings Obsidia produces:
+
+1. **Fewer remote calls** when deterministic structure is sufficient;
+2. **Cheaper remote calls** when inference is still necessary — same routes,
+   same zero false closures, lower spend.
+
+## What is real vs stubbed
+
+**Real in this public Track 1 cut:**
+
+| Component | Status |
+|---|---|
+| UnifiedInputIR, gates, topic router, level decision | Real — extracted and adapted from the Obsidia X-108 terminal |
+| Local deterministic solvers | Real — fingerprint-bounded, zero token |
+| Official resolver (`benchmarks/official_resolver.py`) | Real — single resolution authority for the judged path |
+| Model triage (`app/router/model_triage.py`) | Real — single model-selection authority |
+| Fireworks adapter | Real — OpenAI-compatible; dry-run without credentials |
+| Prompt compression for remote calls (`track1_prompt_compressor.py`) | Real — strips noise, never adds content |
+| Docker harness | Real — the judged image is the one documented here |
+| Metrics and reports | Real — computed from existing records, zero extra calls |
+
+**Stubbed / minimal:**
+
+| Component | Status |
+|---|---|
+| Brody (proprietary local organ) | Stubbed — interface and contract kept; weights and private layers stay out |
+| Memory index | Minimal example — demonstrates level-2 lookup mechanics |
+| Obsidure / Lean / Sigma / OIE / domain bridges | Routing surfaces only — no private runtime |
+
+**Not included:** the full private Obsidia OS, the full X108 kernel runtime,
+private memories, connectors and domains.
+
+Why: none of this is required for Track 1; it protects proprietary layers;
+and Track 3 presents the larger thesis **without pretending the full stack is
+active inside the Docker image**.
 
 ## Quick start
 
@@ -101,173 +185,130 @@ Stdlib-only Python 3.12 — nothing to install.
 # one request with full routing trace
 python -m app.cli "explique le contexte de cette decision"
 
-# interactive loop ('metrics' prints live counters)
-python -m app.cli
+# tests (static + dynamic bounded invariant tests)     [SAFE, zero token]
+python -m pytest -q
+# expected: 1230 passed, 3 skipped
 
-# tests (static + dynamic bounded invariant tests)   [SAFE, zero token]
-python -m pytest tests/ -q
-# expected: all tests pass
-
-# AMD practice category accuracy                      [SAFE, zero token]
+# AMD practice category accuracy                        [SAFE, zero token]
 python benchmarks/answer_accuracy.py
-# expected: overall 8/8 PASS, total_tokens_amd = 0   (PRACTICE)
+# expected: overall 8/8 PASS, total_tokens_amd = 0
 
-# main internal benchmark                             [SAFE, zero token]
-python benchmarks/run_benchmark.py --track1-official --stack-v3b
-# expected: 18/18 route accuracy, 0 tokens, 0 remote (INTERNAL_DRY)
-
-# official judge path on the 8 practice tasks         [SAFE without key]
+# official judge path on the 8 practice tasks           [SAFE without key]
 python scripts/run_official.py --input submission/track1/input/practice_tasks.json --output submission/track1/output/results.json
 python submission/track1/validate_output.py submission/track1/input/practice_tasks.json submission/track1/output/results.json
 # expected: TRACK1_OUTPUT_VALIDATION = PASS, 8/8 answers, strict schema
-```
 
-Full judge-path reproduction guide (Docker, exit codes, output contract):
-[docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md)
+# main internal benchmark                               [SAFE, zero token]
+python benchmarks/run_benchmark.py --track1-official --stack-v3b
+# expected: 18/18 route accuracy, 0 tokens, 0 remote
+
+# frontier boundary map (dry)                           [SAFE, zero token]
+python benchmarks/run_frontier_benchmark.py
+# expected: 15 local / 12 fireworks / 8 governed, false_local_closures = 0
+```
 
 ⚠ **Commands that spend Fireworks tokens** (`--live-baseline`,
 `--random-compare`, `run_frontier_benchmark.py --live`, `probe_ladder.py`,
-`fireworks_smoke_test.py`, `model_matrix_smoke_test.py` without `--dry-run`)
-are documented in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) and must be run
-deliberately — never as part of an automatic validation pack.
+smoke tests without `--dry-run`) are documented in
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md) and must be run deliberately —
+never as part of an automatic validation pack.
 
-### Docker (required for submission)
+## Docker
 
-```powershell
-docker build -t obsidia-router .
+Final submission images (public, anonymous pull verified):
 
-# Official harness mode (default CMD): reads /input/tasks.json,
-# writes /output/results.json. SAFE dry run — no key, zero token:
-docker run --rm `
-  -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
-  -v "${PWD}\submission\track1\output:/output" `
-  obsidia-router
+- Pinned: `ghcr.io/eaubin08/obsidia-router:track1-0a5fc69`
+- Latest: `ghcr.io/eaubin08/obsidia-router:track1`
 
-# Live-compatible run (⚠ spends Fireworks tokens when a real key is present):
-docker run --rm `
-  -e FIREWORKS_API_KEY=$env:FIREWORKS_API_KEY `
-  -e FIREWORKS_BASE_URL=$env:FIREWORKS_BASE_URL `
-  -e ALLOWED_MODELS=$env:ALLOWED_MODELS `
-  -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
-  -v "${PWD}\submission\track1\output:/output" `
-  obsidia-router
+The container runs the **official path** (`scripts/run_official.py`), not
+pytest: it reads `/input/tasks.json`, writes `/output/results.json`, exits 0.
+
+Linux / macOS:
+
+```bash
+docker pull ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+docker run --rm \
+  -v "$PWD/submission/track1/input/practice_tasks.json:/input/tasks.json:ro" \
+  -v "$PWD/submission/track1/output:/output" \
+  ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
 ```
 
-Note: the image ships only the evaluated Track 1 slice (`app/`, the official
-runner and its four contract modules). Benchmarks, tests and the interactive
-demo run from the repo, not from the container.
+Windows PowerShell:
+
+```powershell
+docker pull ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+docker run --rm `
+  -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
+  -v "${PWD}\submission\track1\output:/output" `
+  ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+```
+
+Live-compatible run (⚠ spends Fireworks tokens when a real key is present):
+add `-e FIREWORKS_API_KEY=... -e FIREWORKS_BASE_URL=... -e ALLOWED_MODELS=...`
+— in the official evaluation, the harness injects these variables.
+
+The image ships only the evaluated Track 1 slice (`app/`, the official runner
+and its contract modules including the prompt compressor). Benchmarks, tests
+and the interactive demo run from the repository, not from the container.
+
+Full judge-path reproduction guide (exit codes, output contract):
+[docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md)
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `FIREWORKS_API_KEY` | for live calls | Without it, level-3 decisions run in dry-run mode (route + token estimate, no network). |
-| `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. Scoring harnesses may override. |
-| `ALLOWED_MODELS` | no | Ordered allowlist; the router picks the smallest sufficient rung of *this exact order* — provide it cheapest first. Overrides the default calibrated fallback ladder (gpt-oss-120b, GLM 5.1, DeepSeek V4 Pro — order not independently cost-verified; check the current serverless catalog via `GET /v1/models`). |
+| `FIREWORKS_API_KEY` | for live calls | Without it, level-3 decisions run in dry-run mode (route + token estimate, no network). No key = local-only behavior on paths that don't require Fireworks. |
+| `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. **All** Fireworks calls go through this URL — the scoring harness may override it. |
+| `ALLOWED_MODELS` | no | Ordered allowlist read dynamically at runtime; the router picks the smallest sufficient rung of *this exact order*. The router never hardcodes model IDs in the call path and never calls a model outside this list when it is provided. |
 
 ## Metrics
 
 `benchmarks/run_benchmark.py` writes `results/benchmark_report.json` and a
-judge-readable one-pager `results/REPORT.md` (headline metrics + governance
-table: what the raw model answered to dangerous/ambiguous requests vs the
-Obsidia verdict, with a deterministic frame-violation score):
+judge-readable one-pager `results/REPORT.md`:
 
 - **Track 1**: fireworks_calls, fireworks_tokens, avg latency, route accuracy
 - **Obsidia**: no_model_needed, commands_only_hold, denied,
   clarification_needed, memory_hits, brody_needed, fireworks_needed,
   remote_calls_avoided, estimated_tokens_saved, level0_rate
 
-The report also regroups these existing metrics into **cognitive value
-inputs** — a readonly projection of what the governed valuation layer of the
-full Obsidia stack (deferred, non-token by policy) would read. Nothing is
-minted, priced, or scored, and the projection does not influence Track 1
-scoring, routing, or gates.
+**Prompt compression metrics** (recorded on every remote call):
+`estimated_prompt_tokens`, `completion_budget`, `over_300`, `compact_profile`,
+`prompt_chars_before` / `prompt_chars_after`, `compression_ratio`,
+`citer_used`.
 
-### Adaptive model triage evidence
-
-Every remote-model record is instrumented with three distinct fields, never
-conflated:
-
-- **`selected_model`** — the model actually chosen by the single triage
-  authority (`app.router.model_triage`), always equal to the model
-  transmitted to `fireworks.chat()`.
-- **`actual_model_used`** — the model really captured on the transport
-  call; equal to `selected_model` by construction, kept as a separate field
-  for audit trails.
-- **`contract_model_preference`** — the remote answer contract's older,
-  informative default; kept for telemetry/back-compat only and never
-  selects the call target.
-
-Aggregates (`model_call_distribution`, `model_rung_distribution`,
-`first_rung_call_rate` / `intermediate_rung_call_rate` / `last_rung_call_rate`,
-`higher_rung_calls_avoided`, `local_solver_hit_rate`, `code_tasks_closed_locally`,
-prompt-size counters) are computed by `app.metrics.triage_metrics` from
-existing records only — zero extra Fireworks calls. `ALLOWED_MODELS` order
-is stated by the harness; it is not independently verified as
-cost-ascending, so rung position is reported as a **call count**, never
-converted into a token or dollar saving. See
-[docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md) for the full field
-list. The next safe benchmark run will add the adaptive-triage section to
-`results/REPORT.md`; the currently committed report predates LOT E.
-
-## Tests
-
-- `tests/test_ir.py`, `test_gates.py`, `test_decision.py` — static behavior
-- `tests/test_dynamic_invariants.py` — **bounded dynamic tests**: a seeded
-  generator produces request variations never written down in advance and
-  asserts invariants (world actions never reach a model; denied patterns
-  survive rephrasing; no-auto-act/commit/push always present; escalation
-  requires an ALLOW verdict).
-
-## What is real vs simulated in this cut
-
-| Component | Status |
-|---|---|
-| UnifiedInputIR, gates, topic router, level decision | **Real** — extracted and adapted from the Obsidia X-108 terminal. The public cut is covered by its own test suite (775 tests). |
-| Fireworks adapter | **Real** — OpenAI-compatible client; dry-run without credentials. |
-| Brody (proprietary local LLM organ) | **Stubbed** — interface and contract kept; weights and private memory stay out of the public cut. |
-| Memory index | **Minimal example** — demonstrates level-2 lookup mechanics. |
+**Model triage evidence** — every remote record carries three distinct
+fields, never conflated: `selected_model` (chosen by the single triage
+authority, always the model transmitted to `fireworks.chat()`),
+`actual_model_used` (captured on the transport call; equal by construction,
+kept for audit), and `contract_model_preference` (informative telemetry only,
+never selects the call target). Rung position is reported as a call count,
+never converted into a token or dollar saving, because the `ALLOWED_MODELS`
+order is stated by the harness, not independently cost-verified.
 
 ## Known limits
 
-- The IR keyword tables are a deterministic heuristic slice, not the full OS.
-- Brody being stubbed, level-1 answers are structural, not generative.
-- Accuracy scoring against a reference set is wired via `expected_route`;
-  semantic answer grading depends on the official harness.
+- The hidden AMD judge score is unknown and external; nothing here claims it.
+- Deterministic solvers are fingerprint-bounded: they close only what they
+  can verify, and abstain otherwise (by design).
+- This public cut is not the full Obsidia OS; Brody is stubbed and memory is
+  minimal.
+- Frontier live token values can vary between runs (remote generation,
+  model/runtime variance); routes and the zero-false-closure invariant are
+  the stable claims.
+- No claim is made that Obsidia is a larger or better LLM — the comparison
+  is between two execution strategies (direct model calls vs pre-inference
+  governance), not between models.
+
+## Submission assets
+
+- Track 1 reproducible path: [docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md)
+- Benchmark matrix (SAFE vs LIVE spend): [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
+- Track 3 / narrative: [docs/TRACK3_SUBMISSION.md](docs/TRACK3_SUBMISSION.md)
+- Track 3 metric claims: [docs/TRACK3_METRICS.md](docs/TRACK3_METRICS.md)
+- Demo script (safe by default): [docs/DEMO.md](docs/DEMO.md)
+- Demo video and slide decks: submitted separately.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Comparison method
-
-This project does **not** claim that Obsidia Router is a larger or better language model.
-
-The benchmark compares two execution strategies:
-
-| Strategy | Behavior |
-|---|---|
-| Direct model baseline | Every task is sent to Fireworks. |
-| Obsidia Router | Every task is first compiled into IR, gate, level and route. Fireworks is called only when remote inference is actually required. |
-
-The measured gap is therefore:
-
-- inference avoided before model call;
-- remote tokens avoided;
-- governed frame violations reduced;
-- escalation quality measured by route/path correctness.
-
-The generated `results/REPORT.md` contains the current measured live numbers.
-Remote token counts can vary slightly between live baseline runs because the raw
-model answers are generated remotely.
-
-Stable comparison axes reported by the benchmark:
-
-| Metric | Baseline | Obsidia Router | Evidence level |
-|---|---:|---:|---|
-| Remote calls — internal 18-task benchmark | 18 expected baseline calls | 0/18 | INTERNAL_DRY |
-| Remote calls — official-runner 5-task sample | 5 possible calls | 1/5 | LIVE_SAMPLE |
-| Internal route accuracy | — | 100% (18/18) | INTERNAL_DRY |
-| Governed frame violations | measured live | measured live | LIVE_COMPARATIVE (on demand) |
-
-Path quality, speed profile and escalation quality are reported as separate axes. No global quality score is introduced.
