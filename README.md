@@ -82,16 +82,31 @@ Repository metrics are evidence surfaces, not the hidden AMD judge score.
 
 ## Evidence ladder
 
+Read this as a proof ladder, not as one score: each block proves a
+different property.
+
+### A. Submission proof
+
 | Stage | Command / surface | Result | What it proves |
 |---|---|---|---|
 | Pytest suite | `python -m pytest -q` | **1230 passed, 3 skipped** | The public cut is internally consistent; the 3 skipped tests are conditional report-integration tests, not failures. |
 | AMD practice grader | `python benchmarks/answer_accuracy.py` | **8/8 PASS, 0 tokens, 0/8 remote** | All 8 public practice categories can be answered locally on this surface. |
 | Official runner path | `scripts/run_official.py` + `validate_output.py` | **8/8, 0 tokens, schema STRICT PASS** | The same path used by the Docker container writes strict output. |
 | Docker GHCR public run | `docker run ghcr.io/eaubin08/obsidia-router:track1-0a5fc69` | **8 tasks, 0 tokens, 0/8 remote, exit 0** | The submitted public image can be pulled and run end-to-end. |
+
+### B. Routing and safety proof
+
+| Stage | Command / surface | Result | What it proves |
+|---|---|---|---|
 | Internal routing benchmark | `run_benchmark.py --track1-official --stack-v3b` | **18/18 routes, 0 tokens, 5584 est. tokens saved** | The router avoids 18/18 baseline remote calls on this benchmark, saving an estimated 5584 tokens. |
 | Dynamic bounded invariants | `tests/test_dynamic_invariants.py` | **180/180 held, 0 tokens, ≈0.073 ms/decision** | Generated rephrasings preserve gate behavior. |
 | Dynamic dirty invariants | dirty phase V2 | **160/160 held, 0 tokens, ≈0.082 ms/decision** | Noise/typos/injection attempts do not leak into unsafe actions or unwanted model calls. |
 | V3B stack benchmark | stack routes | **15/15, 0 remote tokens, KX108_ONLY** | Brody/Obsidure/Lean/domain surfaces are routed without enabling real action, memory writes, or kernel mutation. |
+
+### C. Frontier and live-token proof
+
+| Stage | Command / surface | Result | What it proves |
+|---|---|---|---|
 | Frontier dry benchmark | `run_frontier_benchmark.py` | **15 local / 12 frontier-escalation / 8 governed, false closures = 0** | The router keeps unsupported cases open/escalated/governed instead of over-closing. |
 | Frontier live compression | `run_frontier_benchmark.py --live` | **4265 baseline → 2650 compact contract → 2438 final P5D** | The same routes were kept, false local closures stayed 0, and the 9 real paid Fireworks calls became cheaper. |
 | Hidden AMD judge | external | **Unknown** | The official hidden evaluation is external; repository metrics are evidence surfaces, not a leaderboard claim. |
@@ -193,8 +208,9 @@ inference.**
 If every task closed locally, the result would look like hardcoding or
 overfit. The 35-task frontier suite proves the opposite:
 
-- **Unsupported and open-world cases still escalate** (12 tasks go to
-  Fireworks) **or stay governed** (8 tasks are held/denied/clarified).
+- **Unsupported and open-world cases do not get forced into local answers**:
+  12 enter the frontier/escalation bucket, 8 are governed, and in the
+  observed live run 9 became real paid Fireworks calls.
 - **`false_local_closures = 0` is the safety proof**: no local solver ever
   answered a task outside its verified fingerprint just to save tokens.
 - **Correct abstentions are a feature, not a failure** (10 correct local-only
@@ -267,7 +283,7 @@ python benchmarks/run_benchmark.py --track1-official --stack-v3b
 
 # frontier boundary map (dry)                           [SAFE, zero token]
 python benchmarks/run_frontier_benchmark.py
-# expected: 15 local / 12 fireworks / 8 governed, false_local_closures = 0
+# expected: 15 local / 12 frontier-escalation / 8 governed, false_local_closures = 0
 ```
 
 ⚠ **Commands that spend Fireworks tokens** (`--live-baseline`,
@@ -374,4 +390,8 @@ order is stated by the harness, not independently cost-verified.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Source-available proprietary license — see [LICENSE](LICENSE).
+
+This repository is public for AMD Developer Hackathon evaluation, technical
+review, and reproducibility of the documented benchmark and Docker paths.
+Public access does not grant open-source reuse rights.
