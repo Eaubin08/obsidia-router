@@ -3,7 +3,20 @@
 FROM python:3.12-slim
 
 WORKDIR /obsidia-router
-COPY . .
+# Selective COPY: only the code the official runner needs. Local audit dirs,
+# results/, tests/ and docs never enter the image (defense in depth on top of
+# .dockerignore -- the judged image must not carry any pre-computed results).
+COPY app/ app/
+# scripts/: only the official runner — diagnostic smoke tests stay out
+COPY scripts/run_official.py scripts/
+COPY examples/ examples/
+# benchmarks/: only the four modules run_official.py transitively imports
+# (audited via sys.modules). No tasks.json, no fixtures, no reports.
+COPY benchmarks/track1_runner.py \
+     benchmarks/track1_remote_answer_contract.py \
+     benchmarks/track1_escalation_guard.py \
+     benchmarks/track1_response_profile.py \
+     benchmarks/
 
 ENV PYTHONUNBUFFERED=1
 # Live Fireworks calls require FIREWORKS_API_KEY at run time:

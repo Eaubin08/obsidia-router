@@ -1,6 +1,6 @@
 .git
-__pycache__
-*.pyc
+**/__pycache__
+**/*.pyc
 .pytest_cache
 .env
 
@@ -8,10 +8,11 @@ __pycache__
 results/
 *.md
 
-# test / audit / temp directories
-.local_audit_*/
-tmp_official_input/
-tmp_official_output/
-tmp_official_input;C/
-tmp_official_output;C/
-freeze_live_baseline_*/
+# test / audit / temp directories -- must NEVER enter the image
+# (local outputs contain results.json files: shipping them would look like
+# cached answers to the AMD judge)
+.local_*/
+tmp_*/
+freeze_*/
+tests/
+.github/

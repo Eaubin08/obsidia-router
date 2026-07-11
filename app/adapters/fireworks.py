@@ -8,6 +8,9 @@ Environment:
   FIREWORKS_BASE_URL  default https://api.fireworks.ai/inference/v1
   ALLOWED_MODELS      optional comma-separated ladder, cheapest first;
                       overrides the default ladder for scoring harnesses
+  FIREWORKS_TIMEOUT_S per-call timeout in seconds (default 25.0). Clamped to
+                      [1.0, 25.0] — the 30 s per-answer AMD Track 1 cap can
+                      never be exceeded, whatever the environment says.
 
 Headers sent on every request:
   Authorization: Bearer <key>
@@ -19,12 +22,44 @@ Headers sent on every request:
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 import urllib.error
 import urllib.request
 
 DEFAULT_BASE_URL = "https://api.fireworks.ai/inference/v1"
+
+# AMD Track 1 caps each answer at 30 s; keep headroom for routing + I/O.
+# DEFAULT_TIMEOUT_S is a hard ceiling: no environment value may raise it.
+DEFAULT_TIMEOUT_S = 25.0
+MIN_TIMEOUT_S = 1.0
+
+
+def _clamp_timeout(value: float) -> float:
+    """Normalize any timeout to [MIN_TIMEOUT_S, DEFAULT_TIMEOUT_S].
+
+    Single doctrine for env values and explicit caller arguments:
+      - NaN / +-inf / <= 0  -> DEFAULT_TIMEOUT_S (misconfiguration: zero or
+        negative would either hang forever or fail instantly — safe ceiling)
+      - 0 < value < 1       -> MIN_TIMEOUT_S
+      - value > ceiling     -> DEFAULT_TIMEOUT_S
+      - otherwise           -> value unchanged
+    """
+    if not math.isfinite(value) or value <= 0:
+        return DEFAULT_TIMEOUT_S
+    return min(max(value, MIN_TIMEOUT_S), DEFAULT_TIMEOUT_S)
+
+
+def _default_timeout() -> float:
+    raw = os.environ.get("FIREWORKS_TIMEOUT_S", "").strip()
+    if not raw:
+        return DEFAULT_TIMEOUT_S
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_TIMEOUT_S
+    return _clamp_timeout(value)
 
 
 def allowed_models() -> list[str] | None:
@@ -54,9 +89,14 @@ def extract_text(data: dict) -> str:
 
 
 def chat(model: str, prompt: str, max_tokens: int = 512,
-         system: str | None = None, timeout: float = 60.0) -> dict:
+         system: str | None = None, timeout: float | None = None) -> dict:
     """One chat completion. Returns text + real token usage, or a dry-run
     record when no API key is configured."""
+    if timeout is None:
+        timeout = _default_timeout()
+    else:
+        # same doctrine as the env path: [1, 25] s, non-finite/<=0 -> ceiling
+        timeout = _clamp_timeout(timeout)
     api_key = os.environ.get("FIREWORKS_API_KEY", "").strip()
     if not api_key:
         return {
