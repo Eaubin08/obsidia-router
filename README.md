@@ -32,8 +32,36 @@ Evidence levels used throughout this repo:
 zero token) · `LIVE_SAMPLE` (real Fireworks calls on a 5-task sample) ·
 `OFFICIAL_HIDDEN` (the AMD judge — unknown until executed).
 
-Full command matrix and evidence details: [docs/BENCHMARKS.md](docs/BENCHMARKS.md) ·
 Track 3 metric claims: [docs/TRACK3_METRICS.md](docs/TRACK3_METRICS.md)
+
+## Submission assets
+
+One repo, two tracks. Track 1 requires the Docker harness; Track 3 does not —
+it reads the same measured router as an innovation narrative.
+
+**Videos**
+
+- **Primary demo video — Obsidia Router**: `<ROUTER_VIDEO_URL>`
+  (submitted as the main hackathon demo video)
+- Track 3 companion video — Obsidia Cognitive OS: `<COGNITIVE_OS_VIDEO_URL>`
+  (vision companion; not the primary demo)
+
+**Slide decks**
+
+- **Primary deck — Govern Before Inference**: `<GOVERN_BEFORE_INFERENCE_PDF_URL>`
+  (Track 1 benchmark + Track 3 architecture)
+- Companion vision deck — Obsidia Structure Before Inference:
+  `<STRUCTURE_BEFORE_INFERENCE_PDF_URL>` (broader Cognitive OS narrative)
+
+**Documentation**
+
+- Track 1 reproducible path: [docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md)
+- Benchmark matrix (SAFE vs LIVE spend): [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
+- Track 3 / Unicorn narrative: [docs/TRACK3_SUBMISSION.md](docs/TRACK3_SUBMISSION.md)
+- Demo script (safe by default): [docs/DEMO.md](docs/DEMO.md)
+
+A hosted live demo is optional and not currently required; the reproducible
+paths above cover both tracks.
 
 ## The thesis
 
