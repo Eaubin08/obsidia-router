@@ -10,11 +10,11 @@ For AMD ACT II, one public system supports two complementary tracks:
 Track 1 measures token-efficient routing; Track 3 presents the broader
 architecture that makes this behavior possible.
 
-This repository is not a claim that Obsidia is a bigger or better LLM. It is
-a demonstration that a deterministic governance layer placed *before*
-inference reduces both the **number** of remote calls and the **cost** of
-the calls that remain — without ever closing a task it cannot actually
-solve.
+This repository is not a claim that Obsidia is a bigger or better LLM. It
+demonstrates that a deterministic governance layer placed before inference
+can reduce both the **number** of remote calls and the **cost** of the
+calls that remain, while preserving zero false local closures on the
+measured frontier suite.
 
 <a id="start-here"></a>
 
@@ -34,12 +34,6 @@ solve.
 The fastest verification path is the
 [Track 1 Docker proof](#track1-docker-proof): pull the public image, run the
 official input/output contract, and validate the result.
-
-### Recommended paths
-
-- **Track 1 judge:** Docker proof → headline evidence → compliance → reproduction.
-- **Track 3 judge:** broader thesis → architecture → AMD role → product direction.
-- **Technical reviewer:** public pipeline → model layers → frontier → reports and source files.
 
 <a id="two-tracks"></a>
 
@@ -78,8 +72,9 @@ Request
 
 - **UnifiedInputIR** compiles every request into a structured intent before
   anything else happens.
-- **Gates** hold or deny world actions (push, deploy, rm -rf, bypass
-  attempts) at level 0 — a model is never consulted about whether to act.
+- **Gates** hold or deny world actions such as push, deploy, destructive
+  deletion or bypass attempts. In the public evaluation path, action
+  authority is resolved deterministically before any model call.
 - **Local solvers / minimal memory** close factual, math, sentiment, NER,
   code and level-2 lookup tasks that match a verified fingerprint, at zero
   tokens.
@@ -164,9 +159,10 @@ task closed locally, that would look like overfitting instead of judgment.
 - `false_local_closures = 0` is the safety proof: no local solver ever
   answered outside its verified fingerprint to save tokens.
 - **10 correct local-only abstentions**: the router knows the boundary of
-  its own competence. Break-even complexity level: 4 — below it,
-  deterministic structure wins; above it, remote inference is genuinely
-  needed.
+  its own competence. In the current frontier suite, the observed
+  transition appears around complexity level 4: lower-complexity tasks are
+  generally handled by bounded local structure, while higher-complexity
+  cases more often require escalation.
 
 The goal is not to close everything locally. The goal is to know when to
 verify, when to govern, when to abstain and when inference earns its cost.
@@ -311,6 +307,16 @@ The LLM is an organ, not the sovereign brain. A direct-model pipeline must
 infer. Obsidia can sometimes verify, govern or resolve before inference.
 When the route is already known, predicting can be slower than verifying.
 
+### One request, different outcomes
+
+- A factual request may close through a deterministic solver.
+- A structurally incomplete request may trigger CLARIFY.
+- An unauthorized deployment request may be held before inference.
+- Only an open-ended task that survives these layers reaches a model.
+
+The same input surface can therefore produce an answer, an abstention, a
+governance verdict or a bounded model call.
+
 ### The broader architecture
 
 ```
@@ -323,7 +329,7 @@ Input
   → Proof, receipt and replay
 ```
 
-| Component | Public role |
+| Component | Architectural role |
 |---|---|
 | Unified interpretation | Converts natural input into a bounded structural representation |
 | Active plan and capability resolution | Determines what capabilities are actually needed |
@@ -344,22 +350,24 @@ remains `KX108_ONLY`.
 ### Why AMD matters
 
 Obsidia does not replace accelerated inference. It makes accelerated
-inference selective: AMD provides the compute path for tasks that
-genuinely require a model, while Obsidia reduces the number and cost of
-requests reaching that path. Fireworks is the bounded model access point of
-this demonstration, and ROCm/AMD compute is a credible deployment path for
-specialized model organs — not a claim that the private stack already runs
-on it.
+inference selective: the system reduces the number and size of requests
+that reach the remote model path.
+
+For this demonstration, Fireworks provides the bounded inference interface.
+Longer term, AMD and ROCm provide a credible deployment path for specialized
+model organs, without implying that the complete private Obsidia stack
+already runs on that infrastructure.
 
 ### Product direction
 
-Obsidia is a governance and decision layer for AI systems operating under
-risk: banking and financial operations, trading controls, aviation and
-navigation, defense-adjacent decision support, enterprise agents, regulated
-workflows, and code and infrastructure operations. Domains translate reality
-toward the kernel; real-world connectors remain bridge-only until action
-authority is explicitly granted. No certification, regulatory compliance or
-production deployment is claimed beyond what this repository demonstrates.
+Obsidia targets AI workflows where decisions are costly, regulated or
+difficult to reverse, including financial operations, infrastructure
+changes, navigation systems and enterprise agents.
+
+Domains translate real-world states into bounded kernel-readable structures,
+while connectors remain bridge-only until action authority is explicitly
+granted. No certification, regulatory compliance or production deployment
+is claimed beyond what this repository demonstrates.
 
 Product value: lower inference cost and latency on known routes; clearer
 authority boundaries; safer handling of irreversible actions; replayable
@@ -408,7 +416,7 @@ Stdlib-only Python 3.12 — nothing to install.
 
 ```bash
 # one request with full routing trace
-python -m app.cli "explique le contexte de cette decision"
+python -m app.cli "explain the context of this decision"
 
 # tests                                                 [SAFE, zero token]
 python -m pytest -q
