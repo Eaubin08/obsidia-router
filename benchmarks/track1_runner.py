@@ -183,7 +183,7 @@ def build_receipts(track1_rows: list[dict], extra: dict | None = None) -> dict:
     """Construit les receipts_internal.json (gouvernance complète, non soumis au harness)."""
     tasks_out = []
     for row in track1_rows:
-        # Build Brody-like response profile telemetry from observed answer.
+        # Build bounded response-profile telemetry from observed answer.
         # bounded_remote_call=True only when route==fireworks AND a profile was
         # applied before the call — distinguishing it from remote_call_avoided tasks.
         answer_text = track1_answer(row)

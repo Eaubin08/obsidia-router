@@ -171,7 +171,7 @@ rates, never a division error — see `app.metrics.triage_metrics`.
 
 - `PRACTICE` — the 8 AMD practice categories (this harness).
 - `INTERNAL_DRY` — internal 18-task routing benchmark, zero token.
-- `LIVE_SAMPLE` — real Fireworks calls on a small sample.
+- `LIVE_FRONTIER` — deliberate real Fireworks calls on the frontier suite.
 - `OFFICIAL_HIDDEN` — the AMD judge; unknown until executed.
 
 > The practice harness validates container behavior. It does not predict the
@@ -180,10 +180,12 @@ rates, never a division error — see `app.metrics.triage_metrics`.
 ## G. Submission image
 
 ```text
-Public image: TO_BE_PUBLISHED
-Immutable tag: TO_BE_PUBLISHED
-Digest: TO_BE_PUBLISHED
-Public pull test: NOT_YET_RUN
+Public image: ghcr.io/eaubin08/obsidia-router:track1
+Pinned image: ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+Verified manifest digest: sha256:4339cd0d3a952cdc065e9223d441f623ed846ae451e09fa60f2743a73f5daa25
+(verified against the registry with `docker buildx imagetools inspect` — OCI image index digest of the pinned tag)
+Anonymous pull: verified
+Official dry run: verified (8 tasks, 0 tokens, strict schema PASS, exit 0)
 ```
 
 These fields are filled by the registry publication lot (GHCR workflow) and

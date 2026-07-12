@@ -89,7 +89,7 @@ different property.
 
 | Stage | Command / surface | Result | What it proves |
 |---|---|---|---|
-| Pytest suite | `python -m pytest -q` | **1230 passed, 3 skipped** | The public cut is internally consistent; the 3 skipped tests are conditional report-integration tests, not failures. |
+| Pytest suite | `python -m pytest -q` | **1233 passed** | The public cut is internally consistent. Three report-integration tests that were previously conditional now execute because the generated reports are present in the committed evaluation surface. |
 | AMD practice grader | `python benchmarks/answer_accuracy.py` | **8/8 PASS, 0 tokens, 0/8 remote** | All 8 public practice categories can be answered locally on this surface. |
 | Official runner path | `scripts/run_official.py` + `validate_output.py` | **8/8, 0 tokens, schema STRICT PASS** | The same path used by the Docker container writes strict output. |
 | Docker GHCR public run | `docker run ghcr.io/eaubin08/obsidia-router:track1-0a5fc69` | **8 tasks, 0 tokens, 0/8 remote, exit 0** | The submitted public image can be pulled and run end-to-end. |
@@ -333,7 +333,7 @@ python -m app.cli "explique le contexte de cette decision"
 
 # tests (static + dynamic bounded invariant tests)     [SAFE, zero token]
 python -m pytest -q
-# expected: 1230 passed, 3 skipped
+# expected: 1233 passed
 
 # AMD practice category accuracy                        [SAFE, zero token]
 python benchmarks/answer_accuracy.py

@@ -35,7 +35,7 @@ def run_one(raw: str, metrics: MetricsCollector, memory_index: dict,
     """Route one request through the Obsidia pre-inference pipeline.
 
     track1_profile, when provided, overrides the default Fireworks call with
-    a Brody-like budget: {"max_tokens": int, "system": str, "profile": str}.
+    a bounded Track 1 response budget: {"max_tokens": int, "system": str, "profile": str}.
     Only active in --track1-official mode; transparent to V3B and demo modes.
     """
     decision = decide(raw, memory_index=memory_index,

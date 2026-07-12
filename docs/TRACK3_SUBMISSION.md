@@ -152,7 +152,7 @@ structure no longer suffices.
 | # | Step | Command | What the audience sees | What to say | Note |
 |---|---|---|---|---|---|
 | 1 | Track 1 safe harness | open `docs/TRACK1_SUBMISSION.md` | the exact judge path: `/input` → runner → `/output` | "This is everything the judge runs. One container, one contract." | doc only, zero risk |
-| 2 | Tests + practice accuracy | `python -m pytest -q` then `python benchmarks/answer_accuracy.py` | 1230 passed, 3 skipped; 8/8 PASS, 0 token | "Eight official categories, zero remote token." | SAFE; run without a key in the env |
+| 2 | Tests + practice accuracy | `python -m pytest -q` then `python benchmarks/answer_accuracy.py` | 1233 passed; 8/8 PASS, 0 token | "Eight official categories, zero remote token." | SAFE; run without a key in the env |
 | 3 | Internal benchmark | `python benchmarks/run_benchmark.py --track1-official --stack-v3b` | 18/18 routes, 0 remote calls | "Every route correct without calling any model." | SAFE, regenerates REPORT.md |
 | 4 | Frontier map | `python benchmarks/run_frontier_benchmark.py` then open `results/FRONTIER_REPORT.md` | the four-zone boundary table | "Green means no model needed. Red means never call a model. The interesting column is zero false local closures." | SAFE (dry mode is explicit in the report header) |
 | 5 | Docker official runner | build + dry run + `validate_output.py` (commands in TRACK1_SUBMISSION.md §C) | exit 0, strict `[{task_id, answer}]`, validator PASS | "Same container the judge pulls. No key, still deterministic." | SAFE without `-e FIREWORKS_API_KEY` |
@@ -227,7 +227,7 @@ inference. Correct abstention and governed refusal (HOLD/DENY at level 0)
 are first-class zero-token answers. Governance is enforced before the model,
 not prompted into it.
 
-**Metrics** — 1230 tests passed (3 skipped) · 8/8 AMD practice categories at
+**Metrics** — 1233 tests passed · 8/8 AMD practice categories at
 0 token · 18/18 internal route accuracy, 0 remote, 5584 estimated tokens
 saved · 15/15 V3B stack routes · 180/180 + 160/160 seeded invariants ·
 0 false local closures · sub-millisecond local decisions · live frontier

@@ -1,4 +1,4 @@
-"""Tests — Track 1 response profile : Brody-like sizing, zero private imports."""
+"""Tests — Track 1 response profile : adaptive response sizing, zero private imports."""
 from __future__ import annotations
 
 import pytest

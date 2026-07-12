@@ -14,7 +14,7 @@ Ce module  : capture baseline uniquement (mesure de référence, sans
 track1_remote_answer_contract._BUDGETS  : budgets courts Obsidia par
     answer_kind — jamais modifiés ici.
 
-track1_response_profile._MAX_TOKENS     : profils Brody-like Obsidia —
+track1_response_profile._MAX_TOKENS     : profils de réponse bornés Obsidia —
     jamais modifiés ici.
 
 Doctrine

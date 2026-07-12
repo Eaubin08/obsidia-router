@@ -1178,7 +1178,7 @@ _BASELINE_CAPTURE_POLICY = "raw_model_capture_headroom_v1"
 # LOT G2 : _BASELINE_CAPTURE_BUDGETS remplacé par baseline_capture_policy.
 # La baseline utilise le plafond propre au modèle (pas à l'answer_kind).
 # Les budgets courts Obsidia (track1_remote_answer_contract._BUDGETS)
-# et les profils Brody-like (track1_response_profile._MAX_TOKENS) sont inchangés.
+# et les profils de réponse bornés (track1_response_profile._MAX_TOKENS) sont inchangés.
 
 
 def main() -> int:
@@ -1244,7 +1244,7 @@ def main() -> int:
 
     for task in tasks:
         t0 = time.perf_counter()
-        # Pre-classify Brody-like response profile for Track1 Fireworks tasks
+        # Pre-classify the bounded response profile for Track1 Fireworks tasks
         _t1_profile: dict | None = None
         # Les taches cachees du harness AMD n'ont PAS d'expected_route :
         # le contrat (budget max_tokens + system prompt anglais) doit alors

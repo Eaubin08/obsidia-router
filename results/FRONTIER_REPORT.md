@@ -1,6 +1,6 @@
 # Frontier Benchmark Report
 
-Run: `20260709_155550`  |  Tasks: 35  |  API key: `False`  |  fireworks_direct_live: `False`
+Run: `20260712_063521`  |  Tasks: 35  |  API key: `False`  |  fireworks_direct_live: `False`
 
 ## Boundary Map -- where Obsidia goes solo vs where Fireworks is useful
 
@@ -104,49 +104,49 @@ Run: `20260709_155550`  |  Tasks: 35  |  API key: `False`  |  fireworks_direct_l
 
 | Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |
 |------|-----------|----------------|-----------|-----------|
-| obsidia_router | 0 | 0.22 | 10/10 (100%) | 0 |
-| fireworks_direct | 321.5 | 0.12 | 0/10 (0%) | 0 |
-| local_only | 0 | 0.13 | 10/10 (100%) | 0 |
+| obsidia_router | 0 | 0.21 | 10/10 (100%) | 0 |
+| fireworks_direct | 321.5 | 0.11 | 0/10 (0%) | 0 |
+| local_only | 0 | 0.14 | 10/10 (100%) | 0 |
 
 ### closed_variants (n=5)
 
 | Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |
 |------|-----------|----------------|-----------|-----------|
-| obsidia_router | 0 | 0.11 | 5/5 (100%) | 0 |
-| fireworks_direct | 314.2 | 0.08 | 0/5 (0%) | 0 |
+| obsidia_router | 0 | 0.12 | 5/5 (100%) | 0 |
+| fireworks_direct | 314.2 | 0.09 | 0/5 (0%) | 0 |
 | local_only | 0 | 0.1 | 5/5 (100%) | 0 |
 
 ### near_boundary (n=6)
 
 | Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |
 |------|-----------|----------------|-----------|-----------|
-| obsidia_router | 211.8 | 0.09 | 6/6 (100%) | 0 |
-| fireworks_direct | 316.5 | 0.09 | 6/6 (100%) | 0 |
-| local_only | 0 | 0.11 | 6/6 (100%) | 6 |
+| obsidia_router | 211.8 | 0.17 | 6/6 (100%) | 0 |
+| fireworks_direct | 316.5 | 0.15 | 6/6 (100%) | 0 |
+| local_only | 0 | 0.21 | 6/6 (100%) | 6 |
 
 ### open_reasoning (n=4)
 
 | Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |
 |------|-----------|----------------|-----------|-----------|
-| obsidia_router | 243 | 0.11 | 4/4 (100%) | 0 |
-| fireworks_direct | 243 | 0.1 | 4/4 (100%) | 0 |
-| local_only | 0 | 0.13 | 4/4 (100%) | 3 |
+| obsidia_router | 243 | 0.16 | 4/4 (100%) | 0 |
+| fireworks_direct | 243 | 0.14 | 4/4 (100%) | 0 |
+| local_only | 0 | 0.18 | 4/4 (100%) | 3 |
 
 ### governed_actions (n=5)
 
 | Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |
 |------|-----------|----------------|-----------|-----------|
 | obsidia_router | 0 | 0.03 | 5/5 (100%) | 0 |
-| fireworks_direct | 0 | 0.04 | 5/5 (100%) | 0 |
+| fireworks_direct | 0 | 0.03 | 5/5 (100%) | 0 |
 | local_only | 0 | 0.03 | 5/5 (100%) | 0 |
 
 ### noisy_dirty (n=5)
 
 | Mode | Avg tokens | Avg latency ms | Safe rate | Abstained |
 |------|-----------|----------------|-----------|-----------|
-| obsidia_router | 125 | 0.07 | 5/5 (100%) | 0 |
-| fireworks_direct | 189 | 0.1 | 5/5 (100%) | 0 |
-| local_only | 0 | 0.11 | 5/5 (100%) | 3 |
+| obsidia_router | 125 | 0.09 | 5/5 (100%) | 0 |
+| fireworks_direct | 189 | 0.09 | 5/5 (100%) | 0 |
+| local_only | 0 | 0.12 | 5/5 (100%) | 3 |
 
 ## Token Economics
 

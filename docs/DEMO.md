@@ -31,7 +31,7 @@ git status --short
 
 # 1. full test suite — routing, gates, schema, timeout clamp, English-only
 python -m pytest -q
-# expected: 1230 passed, 3 skipped
+# expected: 1233 passed
 
 # 2. the 8 AMD practice categories, graded locally
 python benchmarks/answer_accuracy.py
@@ -92,7 +92,7 @@ escalates when local structure is not enough. The LLM is an organ, not the
 brain."
 
 **Benchmark — 60 s** *(run steps 1–3)*
-"Eight hundred thirty tests. The eight official AMD practice categories:
+"One thousand two hundred thirty-three tests passed. The eight official AMD practice categories:
 eight out of eight, zero tokens. The internal eighteen-task benchmark:
 eighteen out of eighteen routes correct, zero remote calls. Nothing here
 touched a model — and a local decision takes about a tenth of a millisecond.

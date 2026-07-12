@@ -12,3 +12,6 @@ submission/track1/output/*
 # Local-only artifacts (audits, fixtures, official harness IO) - never submit
 .local_*/
 .local_*
+
+# Historical baselines archived outside the public evaluation surface
+audit_snapshots/

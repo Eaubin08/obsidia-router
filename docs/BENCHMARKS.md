@@ -10,7 +10,7 @@ everything else lives here.
 |---|---|
 | `PRACTICE` | AMD practice categories (8 published tasks) |
 | `INTERNAL_DRY` | Internal benchmark, deterministic, zero Fireworks token |
-| `LIVE_SAMPLE` | Real Fireworks calls on a small local sample (5 tasks) |
+| `LIVE_FRONTIER` | Deliberate real Fireworks calls on the frontier suite (`--live`) |
 | `OFFICIAL_HIDDEN` | The hidden AMD judge — unknown until it runs |
 
 **Doctrine**: repository metrics never claim the hidden AMD judge score in
@@ -35,10 +35,17 @@ internal sets only.
 | `python scripts/fireworks_smoke_test.py` | API connectivity check | **LIVE TOKEN SPEND** (1-2 calls) | no | LIVE_DIAGNOSTIC | pre-demo diagnostic |
 | `python scripts/model_matrix_smoke_test.py --dry-run` | contract design + model discovery, no calls | SAFE | no | INTERNAL_DRY | diagnostic |
 | `python scripts/model_matrix_smoke_test.py` (no `--dry-run`) | N models × 3 categories, full completions | **POTENTIALLY EXPENSIVE** — requires `CONFIRM_SPEND=1` | no | LIVE_DIAGNOSTIC | rare recalibration only |
-| `python scripts/run_official.py --input ... --output ...` | official AMD runner | LIVE if key set, dry otherwise (practice: 8/8 local, 0 tokens) | output file only | LIVE_SAMPLE | submission path |
-| `docker build` + `docker run` | AMD submission harness | LIVE if key set | `/output/results.json` | LIVE_SAMPLE | submission path |
+| `python scripts/run_official.py --input ... --output ...` | official AMD runner | LIVE if key set, dry otherwise (practice: 8/8 local, 0 tokens) | output file only | OFFICIAL_PATH | submission path |
+| `docker build` + `docker run` | AMD submission harness | LIVE if key set | `/output/results.json` | OFFICIAL_PATH | submission path |
 
-## Measured baseline numbers (current, db6fa75)
+> Historical live baselines are archived outside the current public
+> evaluation surface. The current evidence is documented in the root README.
+
+> `scripts/fireworks_smoke_test.py`, `scripts/model_matrix_smoke_test.py`
+> and `benchmarks/probe_ladder.py` are developer diagnostics — they are not
+> part of the judged Docker path.
+
+## Measured baseline numbers (current public evidence)
 
 | Metric | Value | Evidence level | Source |
 |---|---:|---|---|
@@ -46,8 +53,8 @@ internal sets only.
 | Route accuracy | 18/18 | INTERNAL_DRY | `run_benchmark.py` |
 | V3B stack routes | 15/15 | INTERNAL_DRY | `--stack-v3b` |
 | Remote calls (18-task benchmark) | 0/18 | INTERNAL_DRY | `run_benchmark.py` |
-| Live sample remote calls | 1/5 | LIVE_SAMPLE | `run_official.py` |
-| Live sample token use | ≈389 | LIVE_SAMPLE | `run_official.py` |
+| Live frontier paid calls | 9 | LIVE_FRONTIER | `run_frontier_benchmark.py --live` |
+| Live frontier compression | 4265 → 2650 → 2438 tokens (mean ≈271, median 275) | LIVE_FRONTIER | `run_frontier_benchmark.py --live` |
 | Dynamic invariants | 180/180 (seed 108) | INTERNAL_DRY | `--dynamic` |
 | Dirty invariants | 160/160 (seed 208) | INTERNAL_DRY | `--dynamic-v2` |
 | Random invariants | 400/400 (10×40, seed 108) | INTERNAL_DRY | `--random-batches` |

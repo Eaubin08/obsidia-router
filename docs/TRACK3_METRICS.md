@@ -5,7 +5,7 @@ with a named source file and an evidence level. No new numbers are invented
 here; everything below points to `results/REPORT.md`,
 `results/FRONTIER_REPORT.md` or a benchmark script.
 
-Evidence levels: `PRACTICE` · `INTERNAL_DRY` · `LIVE_SAMPLE` · `OFFICIAL_HIDDEN`
+Evidence levels: `PRACTICE` · `INTERNAL_DRY` · `LIVE_FRONTIER` · `OFFICIAL_HIDDEN`
 (see [BENCHMARKS.md](BENCHMARKS.md)).
 
 ---
@@ -34,8 +34,8 @@ Two distinct perimeters — never merge them:
 
 - **INTERNAL_DRY**: 18/18 tasks closed locally, 0 tokens, 0 remote calls
   (`run_benchmark.py --track1-official`).
-- **LIVE_FRONTIER**: observed live frontier run ? 9 real paid Fireworks
-  calls, spend compressed 4265 ? 2650 ? 2438 tokens (mean ?271, median 275),
+- **LIVE_FRONTIER**: observed live frontier run — 9 real paid Fireworks
+  calls, spend compressed 4265 → 2650 → 2438 tokens (mean ≈271, median 275),
   routes unchanged, 0 false local closures
   (`benchmarks/run_frontier_benchmark.py --live`, deliberate spend).
 - **Source**: `results/FRONTIER_REPORT.md`, root README evidence ladder.
@@ -77,8 +77,10 @@ Exact composition — always cite it when using the total:
 
 ## 5. Frontier
 
-- **Measured**: 0 false local closures. Also: 15 LOCAL wins, 10 correct
-  abstentions, 12 FIREWORKS_USEFUL calls.
+- **Measured**: 0 false local closures. Also: 15 local closures, 12
+  frontier/escalation cases, 8 governed paths, 10 correct local-only
+  abstentions; 9 FIREWORKS_USEFUL cases became real paid calls in the
+  observed live run.
 - **Break-even observation**: complexity level 4 in the current frontier benchmark.
 - **Evidence level**: INTERNAL_DRY (dry run); `--live` produces the LIVE_COMPARATIVE variant.
 - **Source**: `results/FRONTIER_REPORT.md`, `benchmarks/run_frontier_benchmark.py`.
@@ -147,7 +149,7 @@ Two separate, run-dependent measurements (see BENCHMARKS.md):
   currently committed report predates LOT E. Per-run metadata is written
   to `track1_triage_receipts.json`.
 - **Evidence level**: INTERNAL_DRY (instrumentation always active);
-  LIVE_SAMPLE for any run with a real `FIREWORKS_API_KEY`.
+  LIVE_FRONTIER for deliberate `--live` runs with a real `FIREWORKS_API_KEY`.
 - **Allowed**:
   > The router records which rung of the ALLOWED_MODELS ladder it selected and why, for every remote call.
 - **Forbidden**:

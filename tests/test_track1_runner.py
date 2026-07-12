@@ -341,7 +341,7 @@ def test_write_track1_summary_returned():
 # ── receipts — champs response profile telemetry ──────────────────────────────
 
 def test_receipts_tasks_have_profile_telemetry_fields():
-    """Chaque task dans receipts doit avoir les champs de profil Brody-like + A3 labels."""
+    """Chaque task dans receipts doit avoir les champs de profil de réponse borné + A3 labels."""
     rows = [
         _row("fireworks", tokens=42, output="A concise answer.",
              model="accounts/fireworks/models/gpt-oss-120b",
