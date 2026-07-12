@@ -7,8 +7,8 @@
 - README companion: the Obsidia Cognitive OS video — broader Track 3 vision,
   linked from the README, not the primary demo.
 - The default terminal demo below stays **SAFE / zero-token**.
-- AMD/Fireworks usage evidence is shown through the committed live sample
-  (≈389 tokens, 1/5 remote — `LIVE_SAMPLE` in [BENCHMARKS.md](BENCHMARKS.md)),
+- AMD/Fireworks usage evidence is shown through the observed live frontier
+  run (4265 → 2438 tokens over 9 paid calls — see [BENCHMARKS.md](BENCHMARKS.md)),
   the Fireworks adapter (`app/adapters/fireworks.py`, the single choke
   point), the benchmark docs, and the slide deck — **not** by the SAFE demo
   itself, which deliberately spends nothing.
@@ -31,7 +31,7 @@ git status --short
 
 # 1. full test suite — routing, gates, schema, timeout clamp, English-only
 python -m pytest -q
-# expected: 830 passed
+# expected: 1230 passed, 3 skipped
 
 # 2. the 8 AMD practice categories, graded locally
 python benchmarks/answer_accuracy.py
@@ -69,7 +69,7 @@ python .\submission\track1\validate_output.py `
 # ladder connectivity — 1 minimal call per ALLOWED_MODELS rung
 python benchmarks/probe_ladder.py
 
-# official runner, live — the sample escalation costs ≈389 tokens historically
+# official runner, live — escalations use compact contracts (≈271 tokens/call mean observed)
 python scripts/run_official.py --input submission/track1/input/practice_tasks.json --output submission/track1/output/results.json
 
 # frontier with real Fireworks calls (LIVE_COMPARATIVE)

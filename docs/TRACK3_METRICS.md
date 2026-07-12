@@ -34,11 +34,13 @@ Two distinct perimeters — never merge them:
 
 - **INTERNAL_DRY**: 18/18 tasks closed locally, 0 tokens, 0 remote calls
   (`run_benchmark.py --track1-official`).
-- **LIVE_SAMPLE**: official-runner live sample (5 tasks) — 4 local / 1 remote, ≈389 tokens
-  (`scripts/run_official.py` with a live key).
-- **Source**: `results/REPORT.md`, runner output.
+- **LIVE_FRONTIER**: observed live frontier run ? 9 real paid Fireworks
+  calls, spend compressed 4265 ? 2650 ? 2438 tokens (mean ?271, median 275),
+  routes unchanged, 0 false local closures
+  (`benchmarks/run_frontier_benchmark.py --live`, deliberate spend).
+- **Source**: `results/FRONTIER_REPORT.md`, root README evidence ladder.
 - **Allowed**:
-  > On the internal benchmark, every task closes locally at zero token. On the live 5-task sample, 4 of 5 tasks close locally; the single open-reasoning task escalates under a bounded contract (~389 tokens total).
+  > On the internal benchmark, every task closes locally at zero token. On the observed live frontier run, the 9 paid Fireworks calls were compressed from a 4265-token baseline to 2438 tokens without changing any route.
 - **Forbidden**: presenting the dry benchmark as an official Fireworks run, or
   `0 tokens` without naming the INTERNAL_DRY perimeter.
 
@@ -157,7 +159,7 @@ Two separate, run-dependent measurements (see BENCHMARKS.md):
 ## Narrative spine (each sentence backed by a metric above)
 
 1. *"Obsidia is not a bigger model"* → §6 footprint.
-2. *"It decides whether inference is necessary"* → §2 inference avoidance (LIVE_SAMPLE 4/5 local).
+2. *"It decides whether inference is necessary"* -> section 2 inference avoidance (INTERNAL_DRY 18/18 local, LIVE_FRONTIER 9 paid calls compressed).
 3. *"When the route is known, predicting is slower than verifying"* → §7 speed + §5 break-even.
 4. *"Local closure / abstention / useful Fireworks"* → §5 frontier (15/10/12, 0 false closures).
 5. *"Gates before model"* → §3 governance.

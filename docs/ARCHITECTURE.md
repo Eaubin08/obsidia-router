@@ -33,7 +33,7 @@ determinism, invariants, gates, frame, specialized organs.
    (answer,     (local organ,  (corpus hit,    cheapest sufficient
    HOLD, deny,  structured     no generation)  model on the ladder
    clarify,     frame in)                      + real token usage
-   commands-                                     
+   commands-
    only)
             │
    ┌────────▼─────────┐
@@ -58,17 +58,16 @@ determinism, invariants, gates, frame, specialized organs.
 ## Cognitive value inputs (readonly projection)
 
 The benchmark regroups its existing metrics (avoided inference, frame
-stability, time cost, control) into the inputs a governed cognitive-value
-ledger would read. The valuation layer itself (Gencoin) lives upstream in
-the full stack as readonly/advisory code, is deliberately **deferred**, and
-is bound by a NOT_A_TOKEN policy: no mint, no wallet, no blockchain, no
-economic scoring, decision authority KX108_ONLY. The public projection
-computes no new score — every value is copied verbatim from the benchmark.
+stability, time cost, control) into the inputs a deferred governed
+valuation layer would read. That layer lives upstream in the full stack as
+readonly/advisory code, is deliberately **deferred**, and is bound by a
+NOT_A_TOKEN policy: no mint, no wallet, no blockchain, no economic scoring,
+decision authority KX108_ONLY. The public projection computes no new
+score — every value is copied verbatim from the benchmark.
 
-## Relationship to the full Obsidia X-108 stack
+## Relationship to the full Obsidia stack
 
-This repo is a clean slice, not the whole OS. Upstream (private) live: the
-proof/seal perimeter (Lean, TLA+, Merkle, RFC3161), the Sigma governance
-layer (BLOCK > HOLD > ALLOW), the Brody organ with its memory, the terminal
-cockpit (TUI with separated answer/plan/status/tools/proof surfaces), and
-369 gate tests covering the terminal routing surface.
+This repo is a clean slice, not the whole OS. Upstream lives a private
+proof/governance perimeter: formal proofs, sealing, audit, terminal/cockpit
+surfaces, and governed runtime layers. None of it is shipped or required
+here.

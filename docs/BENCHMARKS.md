@@ -35,7 +35,7 @@ internal sets only.
 | `python scripts/fireworks_smoke_test.py` | API connectivity check | **LIVE TOKEN SPEND** (1-2 calls) | no | LIVE_DIAGNOSTIC | pre-demo diagnostic |
 | `python scripts/model_matrix_smoke_test.py --dry-run` | contract design + model discovery, no calls | SAFE | no | INTERNAL_DRY | diagnostic |
 | `python scripts/model_matrix_smoke_test.py` (no `--dry-run`) | N models × 3 categories, full completions | **POTENTIALLY EXPENSIVE** — requires `CONFIRM_SPEND=1` | no | LIVE_DIAGNOSTIC | rare recalibration only |
-| `python scripts/run_official.py --input ... --output ...` | official AMD runner | LIVE if key set (~389 tokens on the 5-task sample), dry otherwise | output file only | LIVE_SAMPLE | submission path |
+| `python scripts/run_official.py --input ... --output ...` | official AMD runner | LIVE if key set, dry otherwise (practice: 8/8 local, 0 tokens) | output file only | LIVE_SAMPLE | submission path |
 | `docker build` + `docker run` | AMD submission harness | LIVE if key set | `/output/results.json` | LIVE_SAMPLE | submission path |
 
 ## Measured baseline numbers (current, db6fa75)

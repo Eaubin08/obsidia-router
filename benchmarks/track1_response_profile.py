@@ -1,9 +1,8 @@
-"""Track 1 response profile — Brody-like sizing policy, zero private imports.
+"""Track 1 response profile — adaptive sizing policy, zero private imports.
 
 Classifies expected answer size BEFORE the Fireworks call, and observed
-answer size AFTER. Inspired by brody_adaptive_response_policy word-count
-tiers (55 / 180 / 380) but fully self-contained — no dependency on
-apps/obsidia_api or any X-108 private stack.
+answer size AFTER. Uses word-count tiers (55 / 180 / 380) and is fully
+self-contained — no dependency on any private stack.
 
 Profiles
 --------
@@ -12,7 +11,7 @@ Profiles
   CODE             max_tokens=320   code generation tasks
   BOUNDARY_COMPACT max_tokens=120   boundary / governance decision tasks
 
-Word-count observation tiers (Brody-like):
+Word-count observation tiers:
   <= 55  words  → SHORT
   <= 180 words  → MEDIUM
   <= 380 words  → DEEP
@@ -20,7 +19,7 @@ Word-count observation tiers (Brody-like):
 """
 from __future__ import annotations
 
-# ── Tier constants (mirror brody_adaptive_response_policy thresholds) ─────────
+# ── Tier constants (word-count observation thresholds) ────────────────────────
 
 _TIER_SHORT: int = 55
 _TIER_MEDIUM: int = 180
@@ -153,7 +152,7 @@ def classify_observed_answer(answer: str) -> str:
     """Classify the OBSERVED answer text after generation.
 
     Returns one of SHORT / MEDIUM / DEEP / LONG.
-    Uses the same word-count tiers as brody_adaptive_response_policy.
+    Uses the module's word-count observation tiers.
     """
     words = _count_words(answer)
     if words <= _TIER_SHORT:
@@ -183,9 +182,9 @@ def build_track1_system_prompt(profile: str) -> str:
 
 
 def projection_cost(observed_words: int) -> float:
-    """Brody-like dissipation cost from answer word count.
+    """Advisory dissipation heuristic from answer word count.
 
-    Mirrors the projection_cost logic in brody_thermodynamics_signal:
+    Used only for response-profile telemetry:
       > 800 words → 0.50
       > 380 words → 0.30
       < 80  words → 0.10
@@ -208,8 +207,8 @@ def build_response_profile_telemetry(
     """Build the telemetry block for receipts_internal.json.
 
     These fields are NEVER written to results.json (public).
-    They mirror the advisory classification that Brody runs post-generation
-    via brody_adaptive_response_policy + brody_thermodynamics_signal.
+    They carry an advisory post-generation classification used for
+    response-profile telemetry only.
 
     bounded_remote_call=True signals that this task made a real Fireworks call
     whose output budget was capped BEFORE generation — distinguishing it from

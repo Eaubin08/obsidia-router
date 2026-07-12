@@ -113,8 +113,10 @@ arbitrary code.
 
 **REMOTE INFERENCE — escalate only when the problem remains genuinely
 open.** Evidence (MEASURED): FIREWORKS_USEFUL = 9 in the frontier evidence;
-every remote call goes through the bounded remote answer contract; live
-sample ≈389 tokens with 1/5 remote calls. Both boundaries are now
+every remote call goes through the bounded remote answer contract; in the
+observed live frontier run, 9 real paid Fireworks calls totaled 2438 tokens
+(mean ≈271, median 275) after compression from a 4265-token baseline, with
+routes unchanged and 0 false local closures. Both boundaries are now
 implemented: *when to infer* (frontier evidence above) and *which model
 size* — a single triage authority (`app.router.model_triage`) picks the
 smallest sufficient rung of the harness-provided `ALLOWED_MODELS` order for
@@ -150,7 +152,7 @@ structure no longer suffices.
 | # | Step | Command | What the audience sees | What to say | Note |
 |---|---|---|---|---|---|
 | 1 | Track 1 safe harness | open `docs/TRACK1_SUBMISSION.md` | the exact judge path: `/input` → runner → `/output` | "This is everything the judge runs. One container, one contract." | doc only, zero risk |
-| 2 | Tests + practice accuracy | `python -m pytest -q` then `python benchmarks/answer_accuracy.py` | 830 passed; 8/8 PASS, 0 token | "Eight official categories, zero remote token." | SAFE; run without a key in the env |
+| 2 | Tests + practice accuracy | `python -m pytest -q` then `python benchmarks/answer_accuracy.py` | 1230 passed, 3 skipped; 8/8 PASS, 0 token | "Eight official categories, zero remote token." | SAFE; run without a key in the env |
 | 3 | Internal benchmark | `python benchmarks/run_benchmark.py --track1-official --stack-v3b` | 18/18 routes, 0 remote calls | "Every route correct without calling any model." | SAFE, regenerates REPORT.md |
 | 4 | Frontier map | `python benchmarks/run_frontier_benchmark.py` then open `results/FRONTIER_REPORT.md` | the four-zone boundary table | "Green means no model needed. Red means never call a model. The interesting column is zero false local closures." | SAFE (dry mode is explicit in the report header) |
 | 5 | Docker official runner | build + dry run + `validate_output.py` (commands in TRACK1_SUBMISSION.md §C) | exit 0, strict `[{task_id, answer}]`, validator PASS | "Same container the judge pulls. No key, still deterministic." | SAFE without `-e FIREWORKS_API_KEY` |
@@ -184,7 +186,7 @@ current benchmark claim. Component by component:
 |---|---|
 | Local solvers | **Active** Track 1 router components (EXECUTED, MEASURED) |
 | Obsidure | Proposal-only, non-sovereign **route** (`obsidure_route_only`) — it does not execute the solvers |
-| CITER / critical-span extractor | **Implemented, not wired** into the remote execution path (unit-tested only) |
+| CITER / critical-span extractor | **Wired** into the remote escalation path via the frontier prompt compressor (spans extracted only when inline code is present; pure specs pass through untouched) |
 | AST analysis | **Not implemented** in the current public cut |
 | Obsidure engine + CITER + AST integration | **Deferred** / future integration |
 
@@ -208,26 +210,29 @@ bounded answer contract with a calibrated default model.
 **Why AMD / Fireworks matters** — Track 1 is scored on accuracy first, then
 total Fireworks tokens ascending. That is exactly the discipline Obsidia
 optimizes: on the internal 18-task benchmark every task closes at 0 tokens;
-on the live 5-task sample, 4 of 5 close locally and the single open-reasoning
-task escalates under a ~389-token bounded contract. Fireworks is the single
-choke point where remote tokens are spent — governed and measured.
+on the observed live frontier run, the paid Fireworks spend was compressed
+from 4265 to 2438 tokens (9 paid calls, mean ≈271 tokens/call) with routes
+unchanged and 0 false local closures. Fireworks is the single choke point
+where remote tokens are spent — governed and measured.
 
 **What we built** — A stdlib-only Python router (0 GB embedded weights,
 1.88 MB stack), a Docker submission harness with a strict
-`[{task_id, answer}]` contract, a 740/740 seeded invariant campaign, and a
-frontier benchmark that maps where local closure ends and useful inference
-begins (zero false local closures, break-even at complexity 4).
+`[{task_id, answer}]` contract, a seeded invariant campaign (180/180
+bounded, 160/160 dirty), and a frontier benchmark that maps where local
+closure ends and useful inference begins (zero false local closures,
+break-even at complexity 4).
 
 **What is novel** — The scored unit is the *decision to infer*, not the
 inference. Correct abstention and governed refusal (HOLD/DENY at level 0)
 are first-class zero-token answers. Governance is enforced before the model,
 not prompted into it.
 
-**Metrics** — 8/8 AMD practice categories at 0 token (PRACTICE) · 18/18
-internal route accuracy, 0 remote (INTERNAL_DRY) · 15/15 V3B stack routes ·
-740/740 seeded invariants · 0 false local closures · sub-millisecond local
-decisions · live sample 4/5 local, ≈389 tokens (LIVE_SAMPLE). The hidden AMD
-judge score remains external and unclaimed.
+**Metrics** — 1230 tests passed (3 skipped) · 8/8 AMD practice categories at
+0 token · 18/18 internal route accuracy, 0 remote, 5584 estimated tokens
+saved · 15/15 V3B stack routes · 180/180 + 160/160 seeded invariants ·
+0 false local closures · sub-millisecond local decisions · live frontier
+compression 4265 → 2650 → 2438 Fireworks tokens over 9 paid calls. The
+hidden AMD judge score remains external and unclaimed.
 
 **Future work** — Wire the full Brody organ and memory integration from the
 private stack; extend the frontier map with live comparative evidence
