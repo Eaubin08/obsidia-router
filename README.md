@@ -1,4 +1,4 @@
-# Obsidia Router — Structure Before Inference
+﻿# Obsidia Router â€” Structure Before Inference
 
 > Most routers optimize **which** model to call.
 > Obsidia first decides **whether a model call is necessary**.
@@ -10,7 +10,7 @@ before execution.
 For the AMD Developer Hackathon (ACT II):
 
 - **Track 1** demonstrates token-efficient routing and bounded Fireworks
-  escalation — a public, measurable slice.
+  escalation â€” a public, measurable slice.
 - **Track 3** presents the broader architecture: intelligence distributed
   across deterministic structure, model organs, memory, domains, proof and
   governance. The LLM is an **organ**, not the brain.
@@ -18,18 +18,18 @@ For the AMD Developer Hackathon (ACT II):
 A large LLM must infer; Obsidia can often **verify, route, hold, deny, or
 answer before inference**. Every request is compiled into a structured intent
 (UnifiedInputIR), checked against deterministic gates and invariants, and only
-then — if the structure is not enough — escalated to the cheapest sufficient
+then â€” if the structure is not enough â€” escalated to the cheapest sufficient
 Fireworks model, with a compressed prompt and a bounded completion budget.
 
 This repository is not a claim that Obsidia is a bigger or better LLM. It is
 a demonstration that a deterministic governance layer placed *before*
 inference reduces both the **number** of remote calls and the **cost** of the
-calls that remain — without ever closing a task it cannot actually solve.
+calls that remain â€” without ever closing a task it cannot actually solve.
 
 ## What is being demonstrated
 
 - **Not just a router**: routing is one layer of a pre-inference pipeline
-  (structure → gates → local capability → escalation → bounded output).
+  (structure â†’ gates â†’ local capability â†’ escalation â†’ bounded output).
 - **Not just prompt compression**: compression is the last optimization,
   applied only to the calls that survive every earlier layer.
 - **A proprietary governance stack, public cut**: the full Obsidia
@@ -41,7 +41,7 @@ calls that remain — without ever closing a task it cannot actually solve.
 - **Proof by staged evaluation**: each validation stage below demonstrates a
   different property. No single number carries the claim; the ladder does.
 
-## Track 3 — Obsidia: Intelligence Before Inference
+## Track 3 â€” Obsidia: Intelligence Before Inference
 
 ### 1. The broader problem
 
@@ -51,12 +51,12 @@ the route is already structurally known; cost and latency accumulate without
 need; decisions get mixed with text generation; there is no clear boundary
 between proposal, decision and action; and it becomes hard to prove why an
 action was allowed, held or denied. This is not a universal defect of all
-LLMs — it is the architectural problem Obsidia chooses to address.
+LLMs â€” it is the architectural problem Obsidia chooses to address.
 
 ### 2. The Obsidia thesis
 
 ```
-Cognition → Intention → Decision → Action → Proof
+Cognition â†’ Intention â†’ Decision â†’ Action â†’ Proof
 ```
 
 Obsidia separates these stages instead of letting a single model fuse them.
@@ -70,7 +70,7 @@ accompanied by a proof, a receipt or a trace.
 > verified locally, and which actions are allowed to exist?"
 
 Gemini must infer. Obsidia can sometimes avoid inference. This is not a
-claim of superior intelligence — it illustrates an architectural difference
+claim of superior intelligence â€” it illustrates an architectural difference
 between probabilistic inference and structural verification. When the route
 is already known, predicting can be slower than verifying. Intelligence can
 be distributed across structure, memory, domains, tools, proofs and models.
@@ -79,14 +79,14 @@ be distributed across structure, memory, domains, tools, proofs and models.
 
 ```
 Input
-→ Unified interpretation
-→ Active plan
-→ Capability resolution
-→ Local structures, tools and organs
-→ Model inference only when required
-→ Governance kernel
-→ Bounded answer or governed action
-→ Proof and trace
+â†’ Unified interpretation
+â†’ Active plan
+â†’ Capability resolution
+â†’ Local structures, tools and organs
+â†’ Model inference only when required
+â†’ Governance kernel
+â†’ Bounded answer or governed action
+â†’ Proof and trace
 ```
 
 The broader private architecture includes Brody, Obsidure, Sigma, structured
@@ -128,12 +128,16 @@ capabilities: avoiding unnecessary inference, maintaining route accuracy,
 recognizing when local resolution is unsafe, bounding remote generation,
 and preserving governance before action.
 
-In summary: 1233 tests passed · practice 8/8 at 0 tokens, 0 remote ·
-internal benchmark 18/18 · V3B 15/15 · frontier 15 local / 12
+In summary: 1233 tests passed Â· practice 8/8 at 0 tokens, 0 remote Â·
+internal benchmark 18/18 Â· V3B 15/15 Â· frontier 15 local / 12
 frontier-escalation / 8 governed, 10 correct local-only abstentions,
-`false_local_closures = 0` · 9 observed paid Fireworks calls compressed
-4265 → 2650 → 2438 tokens (mean ≈271/call) · hidden AMD judge result:
+`false_local_closures = 0` Â· 9 observed paid Fireworks calls compressed
+4265 â†’ 2650 â†’ 2438 tokens (mean â‰ˆ271/call) Â· hidden AMD judge result:
 unknown. The full evidence ladder and metric dashboard follow below.
+
+The 61.1% Level-0 rate makes the pre-inference thesis measurable: on the
+internal benchmark, most requests were already resolved or governed before
+any model organ was considered.
 
 ### 6. Why AMD matters
 
@@ -224,31 +228,31 @@ Repository metrics are evidence surfaces, not the hidden AMD judge score.
 
 ### Token types
 
-- `local tokens = 0` — local solvers, gates, holds, denials, clarifications
+- `local tokens = 0` â€” local solvers, gates, holds, denials, clarifications
   and dry decisions do not call Fireworks.
-- `total_tokens_amd` — Fireworks tokens spent on the AMD practice category
+- `total_tokens_amd` â€” Fireworks tokens spent on the AMD practice category
   path. Current value: **0**.
-- `estimated_tokens_saved` — internal estimate against a direct-model
+- `estimated_tokens_saved` â€” internal estimate against a direct-model
   baseline. Current value: **5584** on the 18-task benchmark.
-- `dry token estimate` — token estimate produced without real Fireworks
+- `dry token estimate` â€” token estimate produced without real Fireworks
   calls, used to inspect routing safely.
-- `live Fireworks tokens` — real token count returned by Fireworks during
+- `live Fireworks tokens` â€” real token count returned by Fireworks during
   deliberate `--live` runs.
-- `prompt tokens + completion tokens` — a live total includes both the
+- `prompt tokens + completion tokens` â€” a live total includes both the
   prompt sent to the model and the model response.
-- `remote call` — a real Fireworks API call.
-- `frontier/escalation bucket` — a benchmark category marking tasks that
+- `remote call` â€” a real Fireworks API call.
+- `frontier/escalation bucket` â€” a benchmark category marking tasks that
   should *not* close locally; not every bucket entry necessarily becomes a
   paid Fireworks execution in the public cut.
 
 ### Route and safety metrics
 
-- `route accuracy` — whether the router picked an accepted path.
-- `remote_calls_avoided` — how many direct-model calls were avoided.
-- `level-0 rate` — how much was handled before any model layer.
-- `governed` — held, denied, or clarified instead of answered/generated.
-- `correct abstention` — the local-only path correctly refuses to answer.
-- `false_local_closures = 0` — the router never pretended to know locally
+- `route accuracy` â€” whether the router picked an accepted path.
+- `remote_calls_avoided` â€” how many direct-model calls were avoided.
+- `level-0 rate` â€” how much was handled before any model layer.
+- `governed` â€” held, denied, or clarified instead of answered/generated.
+- `correct abstention` â€” the local-only path correctly refuses to answer.
+- `false_local_closures = 0` â€” the router never pretended to know locally
   just to save tokens. **This is the key frontier safety metric.**
 
 ### Dry vs live
@@ -278,8 +282,8 @@ different property.
 | Stage | Command / surface | Result | What it proves |
 |---|---|---|---|
 | Internal routing benchmark | `run_benchmark.py --track1-official --stack-v3b` | **18/18 routes, 0 tokens, 5584 est. tokens saved** | The router avoids 18/18 baseline remote calls on this benchmark, saving an estimated 5584 tokens. |
-| Dynamic bounded invariants | `tests/test_dynamic_invariants.py` | **180/180 held, 0 tokens, ≈0.073 ms/decision** | Generated rephrasings preserve gate behavior. |
-| Dynamic dirty invariants | dirty phase V2 | **160/160 held, 0 tokens, ≈0.082 ms/decision** | Noise/typos/injection attempts do not leak into unsafe actions or unwanted model calls. |
+| Dynamic bounded invariants | `tests/test_dynamic_invariants.py` | **180/180 held, 0 tokens, â‰ˆ0.073 ms/decision** | Generated rephrasings preserve gate behavior. |
+| Dynamic dirty invariants | dirty phase V2 | **160/160 held, 0 tokens, â‰ˆ0.082 ms/decision** | Noise/typos/injection attempts do not leak into unsafe actions or unwanted model calls. |
 | V3B stack benchmark | stack routes | **15/15, 0 remote tokens, KX108_ONLY** | Brody/Obsidure/Lean/domain surfaces are routed without enabling real action, memory writes, or kernel mutation. |
 
 ### C. Frontier and live-token proof
@@ -287,7 +291,7 @@ different property.
 | Stage | Command / surface | Result | What it proves |
 |---|---|---|---|
 | Frontier dry benchmark | `run_frontier_benchmark.py` | **15 local / 12 frontier-escalation / 8 governed, false closures = 0** | The router keeps unsupported cases open/escalated/governed instead of over-closing. |
-| Frontier live compression | `run_frontier_benchmark.py --live` | **4265 baseline → 2650 compact contract → 2438 final P5D** | The same routes were kept, false local closures stayed 0, and the 9 real paid Fireworks calls became cheaper. |
+| Frontier live compression | `run_frontier_benchmark.py --live` | **4265 baseline â†’ 2650 compact contract â†’ 2438 final P5D** | The same routes were kept, false local closures stayed 0, and the 9 real paid Fireworks calls became cheaper. |
 | Hidden AMD judge | external | **Unknown** | The official hidden evaluation is external; repository metrics are evidence surfaces, not a leaderboard claim. |
 
 ### Frontier numbers in plain English
@@ -310,31 +314,31 @@ different property.
 
 ```
 request
-  → structure     (UnifiedInputIR: intent / layer / action / risk / needs)
-  → gates         (DENY > HOLD > CLARIFY > ALLOW — deterministic)
-  → local capability   (deterministic solvers, zero tokens)
-  → memory / Brody interface   (public stubs in this cut)
-  → Fireworks only if needed   (cheapest sufficient model, compressed prompt,
+  â†’ structure     (UnifiedInputIR: intent / layer / action / risk / needs)
+  â†’ gates         (DENY > HOLD > CLARIFY > ALLOW â€” deterministic)
+  â†’ local capability   (deterministic solvers, zero tokens)
+  â†’ memory / Brody interface   (public stubs in this cut)
+  â†’ Fireworks only if needed   (cheapest sufficient model, compressed prompt,
                                 bounded completion budget)
-  → bounded output / metrics   (strict contract, receipts, replay surfaces)
+  â†’ bounded output / metrics   (strict contract, receipts, replay surfaces)
 ```
 
-- **UnifiedInputIR** — every natural-language request is compiled into a
+- **UnifiedInputIR** â€” every natural-language request is compiled into a
   structured intent before anything else happens.
-- **Gates** — world actions (push, deploy, rm -rf, bypass attempts) are held
+- **Gates** â€” world actions (push, deploy, rm -rf, bypass attempts) are held
   or denied at level 0. A model is never consulted about whether to act.
-- **Local deterministic solvers** — factual, math, sentiment, NER, code
+- **Local deterministic solvers** â€” factual, math, sentiment, NER, code
   debugging, logic tasks that match a verified fingerprint close locally at
   zero tokens.
-- **Memory / Brody** — public interface stubs; the full private layers stay
+- **Memory / Brody** â€” public interface stubs; the full private layers stay
   out of this cut.
-- **Fireworks escalation** — only when structure is insufficient. The prompt
+- **Fireworks escalation** â€” only when structure is insufficient. The prompt
   is stripped of noise (`track1_prompt_compressor`), the completion budget is
   capped per answer kind (`build_compact_override`), and the model comes from
   the harness-provided ladder.
-- **Output contract** — strict `[{"task_id", "answer"}]` projection; internal
+- **Output contract** â€” strict `[{"task_id", "answer"}]` projection; internal
   telemetry never leaks into the judged output.
-- **Global Obsidia stack** — not fully active in this repository (see
+- **Global Obsidia stack** â€” not fully active in this repository (see
   "Real vs stubbed" below).
 
 A good answer is not always a long answer. It can be: *I don't know*, *X is
@@ -349,21 +353,21 @@ but it does not enable real actions, memory writes, or kernel mutation.
 
 | Requirement | Status |
 |---|---|
-| Publicly pullable image | ✅ `ghcr.io/eaubin08/obsidia-router:track1` — anonymous pull verified |
-| linux/amd64 | ✅ built with `--platform linux/amd64` |
-| Reads `/input/tasks.json` at startup | ✅ default official runner path |
-| Writes `/output/results.json` before exit | ✅ verified in GHCR run |
-| Strict output schema `[{"task_id","answer"}]` | ✅ `TRACK1_OUTPUT_VALIDATION = PASS` |
-| Exit code 0 on success | ✅ verified |
-| Runtime < 10 min, startup < 60 s, per-answer < 30 s | ✅ practice run completes in seconds; per-call timeouts bounded by the runtime budget |
-| Answers in English | ✅ enforced by contract prompts |
-| No hardcoded / cached answers | ✅ answers derive from request signals; no task-ID branching, no answer tables |
-| Env vars from harness | ✅ `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, `ALLOWED_MODELS` read dynamically |
-| All Fireworks calls via `FIREWORKS_BASE_URL` | ✅ single adapter authority (`app/adapters/fireworks.py`) |
-| Models only from `ALLOWED_MODELS` | ✅ single parsing authority; no hardcoded model IDs in the call path |
-| Local solvers count zero tokens | ✅ 0 tokens on all local closures |
-| ZERO_API_CALLS valid if accuracy passes | ✅ practice: 8/8 correct at 0 API calls |
-| No secrets in image | ✅ selective COPY + `.dockerignore`; no `.env`, keys, results or receipts |
+| Publicly pullable image | âœ… `ghcr.io/eaubin08/obsidia-router:track1` â€” anonymous pull verified |
+| linux/amd64 | âœ… built with `--platform linux/amd64` |
+| Reads `/input/tasks.json` at startup | âœ… default official runner path |
+| Writes `/output/results.json` before exit | âœ… verified in GHCR run |
+| Strict output schema `[{"task_id","answer"}]` | âœ… `TRACK1_OUTPUT_VALIDATION = PASS` |
+| Exit code 0 on success | âœ… verified |
+| Runtime < 10 min, startup < 60 s, per-answer < 30 s | âœ… practice run completes in seconds; per-call timeouts bounded by the runtime budget |
+| Answers in English | âœ… enforced by contract prompts |
+| No hardcoded / cached answers | âœ… answers derive from request signals; no task-ID branching, no answer tables |
+| Env vars from harness | âœ… `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, `ALLOWED_MODELS` read dynamically |
+| All Fireworks calls via `FIREWORKS_BASE_URL` | âœ… single adapter authority (`app/adapters/fireworks.py`) |
+| Models only from `ALLOWED_MODELS` | âœ… single parsing authority; no hardcoded model IDs in the call path |
+| Local solvers count zero tokens | âœ… 0 tokens on all local closures |
+| ZERO_API_CALLS valid if accuracy passes | âœ… practice: 8/8 correct at 0 API calls |
+| No secrets in image | âœ… selective COPY + `.dockerignore`; no `.env`, keys, results or receipts |
 
 ## Key numbers at a glance
 
@@ -373,11 +377,11 @@ but it does not enable real actions, memory writes, or kernel mutation.
 - **Dynamic invariants**: 180/180 bounded variants and 160/160 dirty variants held at 0 tokens.
 - **V3B stack routing**: 15/15 routes, no real action, no memory write, no kernel mutation.
 - **Frontier suite**: 15 local closures, 12 frontier/escalation cases, 8 governed paths, 0 false local closures.
-- **Live frontier compression**: 4265 → 2650 → 2438 real Fireworks tokens, same routes, 9 paid calls.
+- **Live frontier compression**: 4265 â†’ 2650 â†’ 2438 real Fireworks tokens, same routes, 9 paid calls.
 - **Hidden AMD judge**: unknown and external.
 
 Frontier live detail: 9 real paid Fireworks calls in the observed live run,
-mean ≈271 tokens per remote call, median 275. Level-0 rate on the internal
+mean â‰ˆ271 tokens per remote call, median 275. Level-0 rate on the internal
 benchmark: 61%.
 
 ## Metric dashboard
@@ -391,7 +395,7 @@ counters behind them, grouped by what they measure.
 - Docker pull: public anonymous pull verified
 - Docker run: 8 practice tasks
 - Output schema: STRICT PASS
-- Missing answers: 0 · Extra answers: 0 · Empty answers: 0
+- Missing answers: 0 Â· Extra answers: 0 Â· Empty answers: 0
 - Exit: 0
 
 **Meaning**: this proves the submitted container path works independently of
@@ -408,6 +412,49 @@ the local repo checkout.
 
 **Meaning**: this shows Obsidia can close known deterministic surfaces
 before remote inference.
+
+### Inference-layer distribution
+
+| Layer | Tasks | Share | Meaning |
+|---|---:|---:|---|
+| Level 0 â€” structural pre-inference | 11/18 | 61.1% | Resolved or governed before any model layer |
+| Level 1 â€” deterministic local solvers | 5/18 | 27.8% | Closed by bounded local capabilities, without remote inference |
+| Level 2 â€” minimal memory lookup | 2/18 | 11.1% | Resolved through the public cut's minimal memory index |
+| Level 3 â€” Fireworks inference | 0/18 | 0% | No remote model call was required on this INTERNAL_DRY benchmark |
+
+The Level-0 rate is not simply a local-answer rate. It includes three
+structural resolutions, four HOLD verdicts, two DENY verdicts and two
+CLARIFY verdicts. These requests were either resolved or governed before
+any model layer was reached.
+
+| Level-0 route | Count | Function |
+|---|---:|---|
+| `no_model_needed` | 3 | Structural answer without a model |
+| `hold_commands_only` | 4 | Risky action suspended pending authority |
+| `denied` | 2 | Request rejected at the deterministic boundary |
+| `clarification_needed` | 2 | Missing structure detected before inference |
+
+Level 0 is therefore both an efficiency layer and a governance layer:
+avoiding inference does not always mean answering â€” it can mean holding,
+denying or requesting clarification.
+
+- **61.1% pre-inference rate:** 11 of 18 requests were resolved or governed at Level 0, before any model layer.
+- **88.9% handled before memory or remote inference:** 16 of 18 requests were resolved or governed through Level 0 structure or deterministic Level 1 solvers.
+- **100% remote-call avoidance on this internal benchmark:** the remaining 2 tasks were resolved through the minimal memory layer, so 0 of 18 tasks reached Fireworks.
+
+Six requests out of ten never reached a model layer. Nearly nine out of ten
+were closed before memory or remote inference. On this internal benchmark,
+none required Fireworks.
+
+These layer-distribution figures belong exclusively to the 18-task
+INTERNAL_DRY benchmark. They must not be merged with the LIVE_FRONTIER
+evidence, where 9 real paid Fireworks calls were observed and compressed
+from 4265 to 2438 tokens.
+
+- INTERNAL_DRY measures how much of a known validation surface can close
+  before remote inference.
+- LIVE_FRONTIER measures the cost and behavior of the calls that remain
+  genuinely necessary.
 
 ### 3. Governance and invariant safety
 
@@ -438,7 +485,7 @@ checks whether Obsidia knows when to stop, govern, or escalate.
 - Original live frontier spend: 4265 tokens
 - After compact remote contract: 2650 tokens
 - After final P5D compression: 2438 tokens
-- Mean real remote call: ≈271 tokens · Median: 275 tokens
+- Mean real remote call: â‰ˆ271 tokens Â· Median: 275 tokens
 - Route distribution: unchanged
 - False local closures: 0
 
@@ -461,15 +508,15 @@ overfit. The 35-task frontier suite proves the opposite:
   answered a task outside its verified fingerprint just to save tokens.
 - **Correct abstentions are a feature, not a failure** (10 correct local-only
   abstentions): the router knows the boundary of its own competence.
-- Break-even complexity level: 4 — below it, deterministic structure wins;
+- Break-even complexity level: 4 â€” below it, deterministic structure wins;
   above it, remote inference is genuinely needed and is called with a
   compressed prompt and a capped budget.
 
-The live compression sequence (4265 → 2650 → 2438 tokens) shows the two
+The live compression sequence (4265 â†’ 2650 â†’ 2438 tokens) shows the two
 distinct savings Obsidia produces:
 
 1. **Fewer remote calls** when deterministic structure is sufficient;
-2. **Cheaper remote calls** when inference is still necessary — same routes,
+2. **Cheaper remote calls** when inference is still necessary â€” same routes,
    same zero false closures, lower spend.
 
 ## What is real vs stubbed
@@ -478,22 +525,22 @@ distinct savings Obsidia produces:
 
 | Component | Status |
 |---|---|
-| UnifiedInputIR, gates, topic router, level decision | Real — extracted and adapted from the Obsidia X-108 terminal |
-| Local deterministic solvers | Real — fingerprint-bounded, zero token |
-| Official resolver (`benchmarks/official_resolver.py`) | Real — single resolution authority for the judged path |
-| Model triage (`app/router/model_triage.py`) | Real — single model-selection authority |
-| Fireworks adapter | Real — OpenAI-compatible; dry-run without credentials |
-| Prompt compression for remote calls (`track1_prompt_compressor.py`) | Real — strips noise, never adds content |
-| Docker harness | Real — the judged image is the one documented here |
-| Metrics and reports | Real — computed from existing records, zero extra calls |
+| UnifiedInputIR, gates, topic router, level decision | Real â€” extracted and adapted from the Obsidia X-108 terminal |
+| Local deterministic solvers | Real â€” fingerprint-bounded, zero token |
+| Official resolver (`benchmarks/official_resolver.py`) | Real â€” single resolution authority for the judged path |
+| Model triage (`app/router/model_triage.py`) | Real â€” single model-selection authority |
+| Fireworks adapter | Real â€” OpenAI-compatible; dry-run without credentials |
+| Prompt compression for remote calls (`track1_prompt_compressor.py`) | Real â€” strips noise, never adds content |
+| Docker harness | Real â€” the judged image is the one documented here |
+| Metrics and reports | Real â€” computed from existing records, zero extra calls |
 
 **Stubbed / minimal:**
 
 | Component | Status |
 |---|---|
-| Brody (proprietary local organ) | Stubbed — interface and contract kept; weights and private layers stay out |
-| Memory index | Minimal example — demonstrates level-2 lookup mechanics |
-| Obsidure / Lean / Sigma / OIE / domain bridges | Routing surfaces only — no private runtime |
+| Brody (proprietary local organ) | Stubbed â€” interface and contract kept; weights and private layers stay out |
+| Memory index | Minimal example â€” demonstrates level-2 lookup mechanics |
+| Obsidure / Lean / Sigma / OIE / domain bridges | Routing surfaces only â€” no private runtime |
 
 **Not included:** the full private Obsidia OS, the full X108 kernel runtime,
 private memories, connectors and domains.
@@ -504,7 +551,7 @@ active inside the Docker image**.
 
 ## Quick start
 
-Stdlib-only Python 3.12 — nothing to install.
+Stdlib-only Python 3.12 â€” nothing to install.
 
 ```bash
 # one request with full routing trace
@@ -532,10 +579,10 @@ python benchmarks/run_frontier_benchmark.py
 # expected: 15 local / 12 frontier-escalation / 8 governed, false_local_closures = 0
 ```
 
-⚠ **Commands that spend Fireworks tokens** (`--live-baseline`,
+âš  **Commands that spend Fireworks tokens** (`--live-baseline`,
 `--random-compare`, `run_frontier_benchmark.py --live`, `probe_ladder.py`,
 smoke tests without `--dry-run`) are documented in
-[docs/BENCHMARKS.md](docs/BENCHMARKS.md) and must be run deliberately —
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md) and must be run deliberately â€”
 never as part of an automatic validation pack.
 
 ## Docker
@@ -568,9 +615,9 @@ docker run --rm `
   ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
 ```
 
-Live-compatible run (⚠ spends Fireworks tokens when a real key is present):
+Live-compatible run (âš  spends Fireworks tokens when a real key is present):
 add `-e FIREWORKS_API_KEY=... -e FIREWORKS_BASE_URL=... -e ALLOWED_MODELS=...`
-— in the official evaluation, the harness injects these variables.
+â€” in the official evaluation, the harness injects these variables.
 
 The image ships only the evaluated Track 1 slice (`app/`, the official runner
 and its contract modules including the prompt compressor). Benchmarks, tests
@@ -584,7 +631,7 @@ Full judge-path reproduction guide (exit codes, output contract):
 | Variable | Required | Purpose |
 |---|---|---|
 | `FIREWORKS_API_KEY` | for live calls | Without it, level-3 decisions run in dry-run mode (route + token estimate, no network). No key = local-only behavior on paths that don't require Fireworks. |
-| `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. **All** Fireworks calls go through this URL — the scoring harness may override it. |
+| `FIREWORKS_BASE_URL` | no | Defaults to `https://api.fireworks.ai/inference/v1`. **All** Fireworks calls go through this URL â€” the scoring harness may override it. |
 | `ALLOWED_MODELS` | no | Ordered allowlist read dynamically at runtime; the router picks the smallest sufficient rung of *this exact order*. The router never hardcodes model IDs in the call path and never calls a model outside this list when it is provided. |
 
 ## Metrics
@@ -602,7 +649,7 @@ judge-readable one-pager `results/REPORT.md`:
 `prompt_chars_before` / `prompt_chars_after`, `compression_ratio`,
 `citer_used`.
 
-**Model triage evidence** — every remote record carries three distinct
+**Model triage evidence** â€” every remote record carries three distinct
 fields, never conflated: `selected_model` (chosen by the single triage
 authority, always the model transmitted to `fireworks.chat()`),
 `actual_model_used` (captured on the transport call; equal by construction,
@@ -621,7 +668,7 @@ order is stated by the harness, not independently cost-verified.
 - Frontier live token values can vary between runs (remote generation,
   model/runtime variance); routes and the zero-false-closure invariant are
   the stable claims.
-- No claim is made that Obsidia is a larger or better LLM — the comparison
+- No claim is made that Obsidia is a larger or better LLM â€” the comparison
   is between two execution strategies (direct model calls vs pre-inference
   governance), not between models.
 
@@ -636,8 +683,9 @@ order is stated by the harness, not independently cost-verified.
 
 ## License
 
-Source-available proprietary license — see [LICENSE](LICENSE).
+Source-available proprietary license â€” see [LICENSE](LICENSE).
 
 This repository is public for AMD Developer Hackathon evaluation, technical
 review, and reproducibility of the documented benchmark and Docker paths.
 Public access does not grant open-source reuse rights.
+

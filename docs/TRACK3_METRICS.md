@@ -44,6 +44,51 @@ Two distinct perimeters — never merge them:
 - **Forbidden**: presenting the dry benchmark as an official Fireworks run, or
   `0 tokens` without naming the INTERNAL_DRY perimeter.
 
+## Inference-layer distribution
+
+- Evidence level: `INTERNAL_DRY`
+- Dataset: internal 18-task benchmark
+- Level 0: 11/18 = 61.1%
+- Level 1: 5/18 = 27.8%
+- Level 2: 2/18 = 11.1%
+- Level 3 / Fireworks: 0/18 = 0%
+- Level 0 + Level 1: 16/18 = 88.9%
+- Remote calls avoided: 18/18
+
+In this benchmark, the 5 Level-1 tasks were closed by deterministic local
+solvers, not by a live Brody call. Level 2 refers to the public cut's
+minimal memory index, not the full private memory.
+
+**Allowed**:
+
+> On the internal 18-task benchmark, 61.1% of requests were resolved or
+> governed before any model layer.
+
+> 16 of 18 requests were closed through structural Level 0 handling or
+> deterministic Level 1 solvers, before memory or remote inference.
+
+> All 18 baseline remote calls were avoided on this INTERNAL_DRY benchmark.
+
+**Forbidden**:
+
+> ~~Obsidia eliminates 61.1% of inference on every workload.~~
+
+> ~~61.1% of all future requests will never require a model.~~
+
+> ~~The hidden AMD benchmark required zero model calls.~~
+
+> ~~Brody answered 5 of the 18 tasks.~~
+
+These layer-distribution figures belong exclusively to the 18-task
+INTERNAL_DRY benchmark. They must not be merged with the LIVE_FRONTIER
+evidence, where 9 real paid Fireworks calls were observed and compressed
+from 4265 to 2438 tokens.
+
+- INTERNAL_DRY measures how much of a known validation surface can close
+  before remote inference.
+- LIVE_FRONTIER measures the cost and behavior of the calls that remain
+  genuinely necessary.
+
 ## 3. Governance
 
 - **Measured**: gates run before any model; HOLD / DENY / CLARIFY answer at
