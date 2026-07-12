@@ -3,10 +3,17 @@
 > Most routers optimize **which** model to call.
 > Obsidia first decides **whether a model call is necessary**.
 
-**Track 1** (token-efficient agent) — AMD Developer Hackathon: ACT II.
-The narrative extends to **Track 3**: this router is the public, measurable
-slice of a larger proprietary pre-inference governance stack, where the LLM
-is an **organ**, not the brain.
+Obsidia is a governed intelligence architecture that decides when inference
+is necessary, when structure is sufficient, and when an action must be held
+before execution.
+
+For the AMD Developer Hackathon (ACT II):
+
+- **Track 1** demonstrates token-efficient routing and bounded Fireworks
+  escalation — a public, measurable slice.
+- **Track 3** presents the broader architecture: intelligence distributed
+  across deterministic structure, model organs, memory, domains, proof and
+  governance. The LLM is an **organ**, not the brain.
 
 A large LLM must infer; Obsidia can often **verify, route, hold, deny, or
 answer before inference**. Every request is compiled into a structured intent
@@ -33,6 +40,178 @@ calls that remain — without ever closing a task it cannot actually solve.
   Docker harness.
 - **Proof by staged evaluation**: each validation stage below demonstrates a
   different property. No single number carries the claim; the ladder does.
+
+## Track 3 — Obsidia: Intelligence Before Inference
+
+### 1. The broader problem
+
+Modern AI systems often delegate the entire request to a probabilistic model
+too early. This creates recurring problems: remote compute is used even when
+the route is already structurally known; cost and latency accumulate without
+need; decisions get mixed with text generation; there is no clear boundary
+between proposal, decision and action; and it becomes hard to prove why an
+action was allowed, held or denied. This is not a universal defect of all
+LLMs — it is the architectural problem Obsidia chooses to address.
+
+### 2. The Obsidia thesis
+
+```
+Cognition → Intention → Decision → Action → Proof
+```
+
+Obsidia separates these stages instead of letting a single model fuse them.
+A request can be understood structurally, translated into a unified
+language, matched to available capabilities, resolved locally, enriched by
+memory, sent to a model when necessary, governed before any action, and
+accompanied by a proof, a receipt or a trace.
+
+> Obsidia does not only ask, "What answer should a model generate?" It first
+> asks, "Which parts of this request require inference, which parts can be
+> verified locally, and which actions are allowed to exist?"
+
+Gemini must infer. Obsidia can sometimes avoid inference. This is not a
+claim of superior intelligence — it illustrates an architectural difference
+between probabilistic inference and structural verification. When the route
+is already known, predicting can be slower than verifying. Intelligence can
+be distributed across structure, memory, domains, tools, proofs and models.
+
+### 3. From input to bounded outcome
+
+```
+Input
+→ Unified interpretation
+→ Active plan
+→ Capability resolution
+→ Local structures, tools and organs
+→ Model inference only when required
+→ Governance kernel
+→ Bounded answer or governed action
+→ Proof and trace
+```
+
+The broader private architecture includes Brody, Obsidure, Sigma, structured
+memory, gates, Lean-backed proofs, OIE and domain bridges.
+
+> These components describe the broader Obsidia architecture. The public
+> hackathon repository contains only the bounded evaluation cut required to
+> demonstrate the routing and governance thesis.
+
+The kernel does not need to understand the entire world. Domains translate
+reality into a bounded alphabet that the kernel can govern.
+
+### 4. Organs, not one monolithic brain
+
+| Component | Public role |
+|---|---|
+| Unified interpretation | Converts natural input into a bounded structural representation |
+| Active plan and capability resolution | Determines what capabilities are actually needed |
+| Local deterministic structures | Resolve known routes without remote inference |
+| Brody | Proprietary LLM organ connected to structured memory; not the memory itself |
+| Memory | Provides structured, non-sovereign context |
+| Obsidure | Code and implementation organ that can propose changes |
+| Lean-backed proof layer | Verifies selected formal properties; it does not decide |
+| Sigma | Observes coherence and can alert or freeze; it does not decide |
+| Domain bridges | Translate real-world domain states into bounded kernel-readable structures |
+| Gates | Apply pre-execution boundaries |
+| X108 kernel | Retains final decision authority |
+| Receipts and replay | Preserve traceability and auditability |
+
+Not all of these layers execute inside the public repository.
+
+> Proposal, proof, memory and generation remain non-sovereign. Decision
+> authority remains KX108_ONLY.
+
+### 5. What this public cut proves
+
+The measured evidence (detailed in the ladder below) demonstrates five
+capabilities: avoiding unnecessary inference, maintaining route accuracy,
+recognizing when local resolution is unsafe, bounding remote generation,
+and preserving governance before action.
+
+In summary: 1233 tests passed · practice 8/8 at 0 tokens, 0 remote ·
+internal benchmark 18/18 · V3B 15/15 · frontier 15 local / 12
+frontier-escalation / 8 governed, 10 correct local-only abstentions,
+`false_local_closures = 0` · 9 observed paid Fireworks calls compressed
+4265 → 2650 → 2438 tokens (mean ≈271/call) · hidden AMD judge result:
+unknown. The full evidence ladder and metric dashboard follow below.
+
+### 6. Why AMD matters
+
+Local structure reduces the number of inferences needed. When inference is
+genuinely necessary, it must run efficiently on accelerated infrastructure.
+AMD Developer Cloud provides the compute substrate for the tasks that cross
+the inference frontier; Fireworks is the bounded model access point of this
+demonstration; and ROCm and the AMD ecosystem offer a credible path for
+deploying specialized model organs on AMD hardware.
+
+> Obsidia does not argue against accelerated inference. It makes accelerated
+> inference more selective. AMD provides the compute substrate for the cases
+> that genuinely require model intelligence, while Obsidia reduces the
+> number of cases that should reach that substrate at all.
+
+### 7. Product and market potential
+
+Obsidia is a governance and decision layer for AI systems operating under
+risk: banking and financial operations, trading controls, aviation and
+navigation, defense-adjacent decision support, enterprise agents, regulated
+workflows, and code and infrastructure operations. Domains translate reality
+toward the kernel; real-world connectors remain bridge-only until action
+authority is explicitly granted. No certification, regulatory compliance or
+production deployment is claimed beyond what this repository demonstrates.
+
+Product value: lower inference cost; lower latency on known routes; clearer
+authority boundaries; safer handling of irreversible actions; replayable
+evidence; model independence; and the ability to combine deterministic and
+probabilistic intelligence.
+
+### 8. Beyond token savings
+
+Track 1 measures tokens and avoided remote calls. Track 3 shows a broader
+value: better allocation of inference, structural coherence, controlled
+instability, and evidence preservation.
+
+> The long-term research direction is to measure governed cognitive value:
+> not merely how many tokens were consumed, but how much useful, controlled
+> and verifiable capability was produced between the human, the system's
+> structures and its model organs.
+
+> This is currently a readonly research direction, not a currency, token,
+> wallet, economic scoring system or source of decision authority.
+
+Public measurement axes already in place: tokens avoided, remote calls
+avoided, latency avoided, route accuracy, invariant preservation, violations
+prevented, controlled escalation.
+
+### What is public, and what is not
+
+**Public in this repository**: the bounded Track 1 router, the official
+Docker path, deterministic local resolutions, the governance gates required
+for the demonstration, bounded Fireworks escalation, validators, the
+benchmark methodology, and reproducible public evidence.
+
+**Not included in this repository**: the full Brody implementation and
+private memory, the complete Obsidure code organ, the full Lean theorem
+corpus, the private Sigma/OIE layers, production domain bridges, the
+complete X108 kernel stack, private cognitive-value research, and production
+credentials and infrastructure.
+
+> The public repository is evidence of the architecture, not a publication
+> of the entire proprietary system.
+
+### Demo story
+
+```
+1. A request enters the public router.
+2. Obsidia compiles it into a bounded structure.
+3. Known routes close locally with zero remote tokens.
+4. Ambiguous or unsafe actions are clarified, held or denied.
+5. Only genuine frontier tasks reach Fireworks.
+6. Remote generation is bounded before execution.
+7. The result preserves route, authority and evidence metadata.
+```
+
+> Track 1 measures the efficiency gain. Track 3 shows the system design that
+> makes the gain possible.
 
 ## How to read the metrics
 
