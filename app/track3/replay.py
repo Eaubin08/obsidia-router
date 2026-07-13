@@ -23,6 +23,7 @@ from app.gates import gates
 from app.router.local_solvers import try_local_solvers
 from app.track3 import active_plan as active_plan_mod
 from app.track3 import capability_resolver
+from app.track3 import memory_adapter
 from app.track3 import receipt as receipt_mod
 from app.track3.t3_solvers import try_t3_solvers
 
@@ -107,16 +108,28 @@ def replay(receipt_path: str) -> dict:
     gate       = gates.evaluate(ir)
     cap_id, _  = capability_resolver.select(plan, gate)
 
-    # On ALLOW paths, re-run deterministic solvers to match what runtime.py actually chose.
-    # This keeps replay honest: no model call, no Fireworks, same execution order as runtime.
+    # On ALLOW paths, re-run deterministic solvers and memory lookup to match
+    # what runtime.py actually chose. No model call, no Fireworks, same order as runtime.
+    replayed_level = "LEVEL_0"
     if gate["verdict"] == "ALLOW":
         t3 = try_t3_solvers(raw)
         if t3:
             cap_id = _solver_to_cap_id(t3["solver"])
+            replayed_level = "LEVEL_1"
         else:
             loc = try_local_solvers(raw)
             if loc:
                 cap_id = _solver_to_cap_id(loc["solver"])
+                replayed_level = "LEVEL_1"
+            else:
+                mem = memory_adapter.lookup(raw, ir)
+                if mem is not None:
+                    cap_id = "memory_lookup"
+                    replayed_level = "LEVEL_2"
+                else:
+                    # LEVEL_3 requires Brody/Qwen — not re-runnable in replay.
+                    # Level stays LEVEL_3-or-UNRESOLVED; comparison is lenient below.
+                    replayed_level = "LEVEL_3"
 
     # ── 4. Compare ────────────────────────────────────────────────────────────
     stored_ir   = stored.get("unified_ir",        {})
@@ -136,8 +149,15 @@ def replay(receipt_path: str) -> dict:
     }
 
     gate_match = gate["verdict"] == stored_gate.get("verdict")
-    cap_match  = cap_id == stored_cap.get("capability_id")
     auth_match = stored.get("decision_authority") == "KX108_ONLY"
+
+    # Cap match is lenient on LEVEL_3 paths because Brody/Qwen cannot be re-run.
+    # The replayed cap_id at LEVEL_3 is the capability_resolver fallback, not the real one.
+    _level3_caps = {"local_qwen", "brody_readonly", "structural_answer"}
+    if replayed_level == "LEVEL_3":
+        cap_match = stored_cap.get("capability_id") in _level3_caps
+    else:
+        cap_match = cap_id == stored_cap.get("capability_id")
 
     # Status is deterministic only on non-ALLOW gate paths
     stored_status   = stored.get("status", "")
@@ -150,9 +170,21 @@ def replay(receipt_path: str) -> dict:
         status_match = True   # ALLOW path: status depends on actual execution
         status_note  = "not_verified (ALLOW path — execution-dependent)"
 
+    # Escalation level comparison.
+    # LEVEL_3 and UNRESOLVED are both valid stored values when replay infers LEVEL_3
+    # (Brody/Qwen cannot be re-run; the original may have succeeded or failed).
+    stored_level = stored.get("escalation_level_final", "")
+    if replayed_level == "LEVEL_3":
+        level_match = stored_level in ("LEVEL_3", "UNRESOLVED")
+        level_note  = "lenient: LEVEL_3/UNRESOLVED both accepted (model not re-runnable)"
+    else:
+        level_match = stored_level == replayed_level
+        level_note  = "exact match"
+
     ir_match   = not ir_diffs
     plan_match = not plan_diffs
-    all_match  = all([ir_match, plan_match, gate_match, cap_match, auth_match, status_match])
+    all_match  = all([ir_match, plan_match, gate_match, cap_match,
+                      auth_match, status_match, level_match])
 
     report = {
         "HASH_VALID":             "YES",
@@ -164,6 +196,10 @@ def replay(receipt_path: str) -> dict:
         "auth_match":             auth_match,
         "status_match":           status_match,
         "status_note":            status_note,
+        "level_match":            level_match,
+        "level_note":             level_note,
+        "stored_escalation_level":   stored_level,
+        "replayed_escalation_level": replayed_level,
         "stored_gate_verdict":    stored_gate.get("verdict"),
         "replayed_gate_verdict":  replayed_verdict,
         "stored_cap_id":          stored_cap.get("capability_id"),
