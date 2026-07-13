@@ -273,6 +273,70 @@ Full judge-path reproduction guide: [docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBM
 
 ---
 
+<a id="track1-qwen-zero"></a>
+
+## Zero-token Track 1 candidate
+
+This candidate removes the Fireworks fallback entirely and replaces it with a
+fully local inference path.
+
+**Architecture:**
+
+- Deterministic local solvers close factual, math, sentiment, NER and code
+  tasks first, at zero tokens and zero remote calls — identical to the main
+  Track 1 path.
+- When no deterministic solver closes the task, **Qwen2.5-3B-Instruct Q4_K_M**
+  (running via `llama.cpp` on the loopback at `127.0.0.1:8080`) acts as the
+  local fallback. No Fireworks call is made, even when `FIREWORKS_API_KEY` is
+  present.
+- Every Qwen output passes through the same provider-agnostic
+  `validate_remote_output` pipeline used for Fireworks answers
+  (`allowed_labels`, `sentence_count`).
+- If validation fails, one bounded `repair_remote_output` pass is applied;
+  only the repaired output re-validates. No second model call.
+- No final Fireworks fallback: tasks unresolved after the Qwen pass remain
+  unresolved.
+
+**Internal hidden-like benchmark result:**
+
+> **127 / 128 correct — 99.2 %**
+>
+> This is an **internal** benchmark measured against a hidden-like task set
+> prepared in this session. It is **not** the official AMD judge score, which
+> is external and unknown.
+
+**Measured local Docker validation:**
+
+| Metric | Value |
+|---|---|
+| Fireworks calls | 0 |
+| Fireworks tokens | 0 |
+| Runtime (128 tasks) | 80 s |
+| Cold startup | 49 s |
+| Peak memory | 2.26 GiB |
+| Compressed image | 2.11 GB |
+| Architecture | linux/amd64 |
+
+**Run command (network-isolated, AMD 4 GB target):**
+
+```bash
+docker run --rm \
+  --network none \
+  --memory 4g \
+  --cpus 2 \
+  -e FIREWORKS_API_KEY=dummy \
+  -e FIREWORKS_BASE_URL=http://127.0.0.1:9 \
+  -e ALLOWED_MODELS=dummy-model \
+  -v <input-dir>:/input:ro \
+  -v <output-dir>:/output \
+  ghcr.io/eaubin08/obsidia-router:track1-qwen-zero
+```
+
+Replace `<input-dir>` with the directory containing `tasks.json` and
+`<output-dir>` with the directory where `results.json` will be written.
+
+---
+
 <a id="track3"></a>
 
 ## Track 3 — Intelligence Before Inference

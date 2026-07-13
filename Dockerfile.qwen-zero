@@ -1,0 +1,48 @@
+# Track 1 — QWEN_ZERO candidate image
+# Single image: llama-server + Qwen2.5-3B-Instruct Q4_K_M + Python router
+# Build context: $env:TEMP\obsidia-track1-qwen-zero-build  (contains GGUF, never the Git worktree)
+# Tag:           obsidia-router:track1-qwen-zero-candidate
+# No docker-compose, no sidecar, no Fireworks path.
+
+# ── Stage 1: llama-server binary from official image ────────────────────────
+FROM ghcr.io/ggml-org/llama.cpp:server AS llama-src
+
+# ── Stage 2: final runtime image ─────────────────────────────────────────────
+FROM python:3.12-slim
+
+WORKDIR /obsidia-router
+
+# libgomp1: OpenMP runtime required by llama-server (openmp is a shared lib)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
+
+# GGUF model — placed first so its cached layer survives llama-src changes.
+# Copied into build context from host, NOT from Git.
+# Host path: C:\Users\User\AppData\Local\llama.cpp\Qwen_Qwen2.5-3B-Instruct-GGUF_qwen2.5-3b-instruct-q4_k_m.gguf
+COPY qwen2.5-3b-instruct-q4_k_m.gguf /models/qwen2.5-3b-instruct-q4_k_m.gguf
+
+# ALL llama.cpp runtime files (binary + shared libs: libllama-server-impl.so,
+# libllama.so, libggml*.so, libmtmd.so, CPU-specific ISA libs, …)
+# Binary lives at /app/llama-server — same path as in the original image.
+COPY --from=llama-src /app/ /app/
+ENV LD_LIBRARY_PATH=/app
+
+# Router source (from build context, mirrored from repo by prepare script)
+COPY app/        app/
+COPY scripts/    scripts/
+COPY benchmarks/ benchmarks/
+COPY examples/   examples/
+
+# ── Environment ───────────────────────────────────────────────────────────────
+ENV TRACK1_QWEN_ZERO=1
+ENV TRACK1_LOCAL_MODE=ZERO
+ENV QWEN_LOCAL_ENDPOINT=http://127.0.0.1:8080/v1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# ── Healthcheck (inside-container only — loopback, no external reach) ─────────
+HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=12 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)" || exit 1
+
+CMD ["python", "scripts/qwen_zero_entrypoint.py"]
