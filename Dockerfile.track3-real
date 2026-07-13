@@ -1,0 +1,57 @@
+# Track 3 real escalation runtime image.
+#
+# Base: Track 1 image (contains llama-server at /app/, Qwen2.5-3B Q4_K_M at
+#       /models/, Python 3.12, and app.ir/gates/router/adapters/benchmarks at
+#       /obsidia-router/). Only app/track3/ and the new entrypoint are added.
+#
+# Invariants guaranteed by runtime:
+#   decision_authority = KX108_ONLY
+#   fireworks_attempted = False
+#   tokens_remote = 0
+#   mutations_performed = []
+#   external_calls = []
+#
+# Build:
+#   docker build --platform linux/amd64 -f Dockerfile.track3-real \
+#     -t obsidia-router:track3-real-escalation .
+#
+# Run:
+#   docker run --rm --network none --memory 4g --cpus 2 \
+#     -v /abs/path/to/input:/input:ro \
+#     -v /abs/path/to/output:/output \
+#     obsidia-router:track3-real-escalation
+
+FROM ghcr.io/eaubin08/obsidia-router:track1-qwen-zero
+
+LABEL org.opencontainers.image.title="obsidia-router track3-real-escalation"
+LABEL org.opencontainers.image.description="Track 3 governed escalation runtime — real Qwen, KX108_ONLY, no Fireworks"
+LABEL track3.schema_version="track3/2.0"
+LABEL track3.decision_authority="KX108_ONLY"
+LABEL track3.fireworks="disabled"
+LABEL track3.tokens_remote="0"
+LABEL track3.mutations="never"
+LABEL track3.base="track1-qwen-zero"
+
+# Working directory matches the base image (project root at /obsidia-router)
+WORKDIR /obsidia-router
+
+# ── Add Track 3 runtime module ────────────────────────────────────────────────
+COPY app/track3/  app/track3/
+
+# ── Add Track 3 entrypoint ───────────────────────────────────────────────────
+COPY scripts/track3_real_entrypoint.py  scripts/track3_real_entrypoint.py
+
+# ── Track 3 environment overrides ────────────────────────────────────────────
+ENV LLAMA_SERVER_BIN=/app/llama-server
+ENV LLAMA_MODEL_PATH=/models/qwen2.5-3b-instruct-q4_k_m.gguf
+ENV LLAMA_PORT=8080
+ENV LLAMA_THREADS=2
+ENV LLAMA_CTX_SIZE=2048
+ENV LLAMA_N_PREDICT=512
+ENV QWEN_LOCAL_ENDPOINT=http://127.0.0.1:8080/v1
+ENV T3_INPUT=/input/tasks.json
+ENV T3_OUTPUT=/output
+ENV TRACK3_SCHEMA=track3/2.0
+ENV TRACK3_DECISION_AUTHORITY=KX108_ONLY
+
+CMD ["python", "scripts/track3_real_entrypoint.py"]
