@@ -100,7 +100,7 @@ broader private components are introduced in [Track 3](#track3).
 
 | Proof | Result | Meaning |
 |---|---:|---|
-| Test suite | 1233 passed | Public evaluation cut is internally consistent |
+| Test suite | 1860 passed | Public evaluation cut is internally consistent |
 | AMD practice surface | 8/8, 0 remote, 0 tokens | Practice categories close locally |
 | Internal routing | 18/18 accepted routes | Every route matched an accepted path, 5584 est. tokens saved |
 | Level-0 rate | 11/18 = 61.1% | Resolved or governed before any model layer |
@@ -177,15 +177,15 @@ verify, when to govern, when to abstain and when inference earns its cost.
 | Writes `/output/results.json` before exit | ✅ verified in GHCR run |
 | Strict output schema `[{"task_id","answer"}]` | ✅ `TRACK1_OUTPUT_VALIDATION = PASS` |
 | Exit code 0 on success | ✅ verified |
-| Runtime < 10 min, startup < 60 s, per-answer < 30 s | ✅ practice run completes in seconds |
+| Runtime < 10 min, startup < 60 s, per-answer < 30 s | ✅ public test: startup 21.1 s, 8 tasks in 45.59 s |
 | Answers in English | ✅ enforced by contract prompts |
 | No hardcoded / cached answers | ✅ derived from request signals; no task-ID branching |
 | Env vars from harness | ✅ `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL`, `ALLOWED_MODELS` read dynamically |
-| All Fireworks calls via `FIREWORKS_BASE_URL` | ✅ single adapter authority (`app/adapters/fireworks.py`) |
-| Models only from `ALLOWED_MODELS` | ✅ single parsing authority; no hardcoded model IDs |
-| Local solvers count zero tokens | ✅ 0 tokens on all local closures |
-| ZERO_API_CALLS valid if accuracy passes | ✅ practice: 8/8 correct at 0 API calls |
-| No secrets in image | ✅ selective COPY + `.dockerignore` |
+| Fireworks calls in submitted image | 0 — `TRACK1_QWEN_ZERO=1` blocks all Fireworks calls; Qwen2.5-3B local fallback only |
+| Models only from `ALLOWED_MODELS` | ✅ read at runtime; Qwen path uses no remote model |
+| Local solvers count zero tokens | ✅ 0 Fireworks tokens on all closures (local solver + Qwen local) |
+| ZERO_API_CALLS valid if accuracy passes | ✅ public test: 8/8 correct, 0 Fireworks calls, 0 Fireworks tokens |
+| No secrets in image | ✅ selective COPY + `.dockerignore`; no API key baked in |
 
 <a id="track1-docker-proof"></a>
 
@@ -197,36 +197,39 @@ the official Track 1 evaluation harness.
 
 | Submission artifact | Verified value |
 |---|---|
-| Public image | `ghcr.io/eaubin08/obsidia-router:track1-0a5fc69` |
-| OCI index digest | `sha256:4339cd0d3a952cdc065e9223d441f623ed846ae451e09fa60f2743a73f5daa25` |
+| Public image | `ghcr.io/eaubin08/obsidia-router:track1-qwen-zero` |
+| OCI digest | `sha256:6f81c4f529bcfe50394f1d4beee23c6cbbcc4b987feaeb726d6e30e8ecd225fe` |
 | Platform | `linux/amd64` |
 | Input | `/input/tasks.json` |
 | Output | `/output/results.json` |
-| Output schema | Strict `[{"task_id","answer"}]` |
-| Practice result | 8 tasks, 8 answers, 0 remote calls, 0 Fireworks tokens |
+| Output schema | Strict `[{"task_id","answer"}]` — `TRACK1_OUTPUT_VALIDATION = PASS` |
+| Public test result | 8 tasks, 8 answers, 0 Fireworks calls, 0 Fireworks tokens |
+| Startup (Qwen cold) | 21.1 s |
+| Runtime (8 tasks) | 45.59 s |
 | Process result | Exit code 0 |
 | Anonymous pull | Verified |
+| Internal hidden-like benchmark | 127 / 128 — 99.2% — **not the official AMD judge score** |
 
 Linux / macOS:
 
 ```bash
-docker pull ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+docker pull ghcr.io/eaubin08/obsidia-router:track1-qwen-zero
 
 docker run --rm \
   -v "$PWD/submission/track1/input/practice_tasks.json:/input/tasks.json:ro" \
   -v "$PWD/submission/track1/output:/output" \
-  ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+  ghcr.io/eaubin08/obsidia-router:track1-qwen-zero
 ```
 
 Windows PowerShell:
 
 ```powershell
-docker pull ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+docker pull ghcr.io/eaubin08/obsidia-router:track1-qwen-zero
 
 docker run --rm `
   -v "${PWD}\submission\track1\input\practice_tasks.json:/input/tasks.json:ro" `
   -v "${PWD}\submission\track1\output:/output" `
-  ghcr.io/eaubin08/obsidia-router:track1-0a5fc69
+  ghcr.io/eaubin08/obsidia-router:track1-qwen-zero
 ```
 
 Validate the output strictly:
@@ -255,17 +258,17 @@ TRACK1_OUTPUT_VALIDATION = PASS
 exit code = 0
 ```
 
-The practice input closes locally and therefore spends zero Fireworks
-tokens. The official hidden harness may inject a Fireworks key and
-different tasks; its result remains external and unknown. This Docker
-proof is not a validation of the hidden AMD judge score.
+This image runs in `TRACK1_QWEN_ZERO=1` mode: even when `FIREWORKS_API_KEY` is
+injected by the harness, no Fireworks call is made. All tasks are resolved by
+deterministic local solvers or by the Qwen2.5-3B local model on the loopback.
+The official hidden harness may inject different tasks; its result is external
+and unknown. This Docker proof is not a validation of the hidden AMD judge score.
 
-Live-compatible run (⚠ spends Fireworks tokens when a real key is present):
-add `-e FIREWORKS_API_KEY=... -e FIREWORKS_BASE_URL=... -e ALLOWED_MODELS=...`
-— in the official evaluation, the harness injects these variables. The
-image ships only the evaluated Track 1 slice (`app/`, the official runner
-and its contract modules including the prompt compressor); benchmarks,
-tests and the interactive demo run from the repository, not the container.
+The harness injects `FIREWORKS_API_KEY`, `FIREWORKS_BASE_URL` and
+`ALLOWED_MODELS`; the image reads them at startup for compatibility but the
+Qwen-zero path does not use them for inference. Unlike the historical
+Fireworks-capable router (which escalated to Fireworks when local solvers
+could not close a task), this submission has no remote fallback.
 
 Full judge-path reproduction guide: [docs/TRACK1_SUBMISSION.md](docs/TRACK1_SUBMISSION.md).
 
@@ -305,16 +308,17 @@ fully local inference path.
 > prepared in this session. It is **not** the official AMD judge score, which
 > is external and unknown.
 
-**Measured local Docker validation:**
+**Measured Docker validation — public image run:**
 
 | Metric | Value |
 |---|---|
 | Fireworks calls | 0 |
 | Fireworks tokens | 0 |
-| Runtime (128 tasks) | 80 s |
-| Cold startup | 49 s |
-| Peak memory | 2.26 GiB |
-| Compressed image | 2.11 GB |
+| Startup (Qwen cold, public test) | 21.1 s |
+| Runtime (8 tasks, public test) | 45.59 s |
+| Runtime (128 tasks, local internal) | 80 s |
+| Peak memory (local, --memory 3g) | 2.26 GiB |
+| Compressed image size | 2.11 GB |
 | Architecture | linux/amd64 |
 
 **Run command (network-isolated, AMD 4 GB target):**
@@ -484,7 +488,7 @@ python -m app.cli "explain the context of this decision"
 
 # tests                                                 [SAFE, zero token]
 python -m pytest -q
-# expected: 1233 passed
+# expected: 1860 passed
 
 # AMD practice category accuracy                        [SAFE, zero token]
 python benchmarks/answer_accuracy.py
