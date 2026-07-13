@@ -2,10 +2,13 @@
 
 ## Demo surfaces
 
-- **Primary demo: the Obsidia Router video** — this script is what that video
-  records. It is the main hackathon demo.
-- README companion: the Obsidia Cognitive OS video — broader Track 3 vision,
-  linked from the README, not the primary demo.
+- **Primary demo video (Track 3 governed escalation):**
+  https://www.youtube.com/watch?v=Bxe5saL0lvo&t=195s
+- **Track 3 runtime demo**: the public container
+  `ghcr.io/eaubin08/obsidia-router:track3-real-escalation`
+  (digest `sha256:a2ae4b0b5ac71786ec5322406e130c97f2df1d19cae133e3b8de395189a2283c`)
+  runs the full escalation ladder — verified results in
+  [TRACK3_METRICS.md](TRACK3_METRICS.md) §0.
 - The default terminal demo below stays **SAFE / zero-token**.
 - AMD/Fireworks usage evidence is shown through the observed live frontier
   run (4265 → 2438 tokens over 9 paid calls — see [BENCHMARKS.md](BENCHMARKS.md)),
@@ -29,9 +32,13 @@ spend tokens.
 # 0. clean state
 git status --short
 
-# 1. full test suite — routing, gates, schema, timeout clamp, English-only
+# 1. Track 3 test suite — escalation ladder, receipts, replay
+python -m pytest tests/track3 -q
+# expected: all tests pass; the 5 real-Qwen tests skip without a local Qwen endpoint
+
+# 1b. full test suite — routing, gates, schema, timeout clamp, English-only
 python -m pytest -q
-# expected: 1233 passed
+# expected: full suite passes
 
 # 2. the 8 AMD practice categories, graded locally
 python benchmarks/answer_accuracy.py
@@ -92,7 +99,7 @@ escalates when local structure is not enough. The LLM is an organ, not the
 brain."
 
 **Benchmark — 60 s** *(run steps 1–3)*
-"One thousand two hundred thirty-three tests passed. The eight official AMD practice categories:
+"The full test suite passes. The eight official AMD practice categories:
 eight out of eight, zero tokens. The internal eighteen-task benchmark:
 eighteen out of eighteen routes correct, zero remote calls. Nothing here
 touched a model — and a local decision takes about a tenth of a millisecond.

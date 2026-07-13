@@ -3,6 +3,40 @@
 > Every number in this document maps to a measured value with a named source.
 > Claim discipline and allowed wording: [TRACK3_METRICS.md](TRACK3_METRICS.md).
 
+**Submission surfaces**
+
+- 🎬 Demo video: https://www.youtube.com/watch?v=Bxe5saL0lvo&t=195s
+- 📦 Track 3 container: `ghcr.io/eaubin08/obsidia-router:track3-real-escalation`
+  (digest `sha256:a2ae4b0b5ac71786ec5322406e130c97f2df1d19cae133e3b8de395189a2283c`, linux/amd64)
+- 📦 Track 1 container: `ghcr.io/eaubin08/obsidia-router:track1-qwen-zero`
+  (digest `sha256:6f81c4f529bcfe50394f1d4beee23c6cbbcc4b987feaeb726d6e30e8ecd225fe`)
+- 📚 Repository: https://github.com/Eaubin08/obsidia-router
+
+## 0. Track 3 governed escalation runtime — verified results
+
+The Track 3 runtime (`app/track3/`) executes the full governed escalation
+ladder with a real local model:
+
+```
+Input → UnifiedInputIR → Active Plan → Capability Resolver → Gates
+  → LEVEL 1 deterministic structures → LEVEL 2 readonly memory
+  → LEVEL 3 Brody readonly (when a real loopback endpoint is available)
+  → LEVEL 3 local Qwen → KX108_ONLY → canonical receipt → readonly replay
+```
+
+Verified results (see [TRACK3_METRICS.md](TRACK3_METRICS.md) §0 for the
+full table and allowed wording): 359/359 Track 3 tests passed (including
+5/5 real-Qwen integration tests); 12-task demonstration batch with 12/12
+valid receipt hashes and 12/12 matched readonly replays; 0 Fireworks
+calls; 0 remote tokens; 0 memory writes; 0 world actions; 0 kernel
+mutations; decision authority `KX108_ONLY`. Escalation distribution:
+LEVEL 0 = 3, LEVEL 1 = 2, LEVEL 2 = 2, LEVEL 3 Qwen = 5, LEVEL 3 Brody = 0.
+Accuracy: 4/5 on the scored demonstration subset.
+
+Honest boundaries: the private Brody is not embedded; `brody_stub` is
+never accepted as a final semantic answer; Obsidure, Lean, Sigma, OIE and
+domain bridges remain route-only or bridge-required in the public runtime.
+
 ## 1. One-line pitch
 
 **Obsidia is not a bigger model. It is a pre-inference governance router that
@@ -152,7 +186,7 @@ structure no longer suffices.
 | # | Step | Command | What the audience sees | What to say | Note |
 |---|---|---|---|---|---|
 | 1 | Track 1 safe harness | open `docs/TRACK1_SUBMISSION.md` | the exact judge path: `/input` → runner → `/output` | "This is everything the judge runs. One container, one contract." | doc only, zero risk |
-| 2 | Tests + practice accuracy | `python -m pytest -q` then `python benchmarks/answer_accuracy.py` | 1233 passed; 8/8 PASS, 0 token | "Eight official categories, zero remote token." | SAFE; run without a key in the env |
+| 2 | Tests + practice accuracy | `python -m pytest -q` then `python benchmarks/answer_accuracy.py` | full suite passes; 8/8 PASS, 0 token | "Eight official categories, zero remote token." | SAFE; run without a key in the env |
 | 3 | Internal benchmark | `python benchmarks/run_benchmark.py --track1-official --stack-v3b` | 18/18 routes, 0 remote calls | "Every route correct without calling any model." | SAFE, regenerates REPORT.md |
 | 4 | Frontier map | `python benchmarks/run_frontier_benchmark.py` then open `results/FRONTIER_REPORT.md` | the four-zone boundary table | "Green means no model needed. Red means never call a model. The interesting column is zero false local closures." | SAFE (dry mode is explicit in the report header) |
 | 5 | Docker official runner | build + dry run + `validate_output.py` (commands in TRACK1_SUBMISSION.md §C) | exit 0, strict `[{task_id, answer}]`, validator PASS | "Same container the judge pulls. No key, still deterministic." | SAFE without `-e FIREWORKS_API_KEY` |
@@ -227,11 +261,13 @@ inference. Correct abstention and governed refusal (HOLD/DENY at level 0)
 are first-class zero-token answers. Governance is enforced before the model,
 not prompted into it.
 
-**Metrics** — 1233 tests passed · 8/8 AMD practice categories at
-0 token · 18/18 internal route accuracy, 0 remote, 5584 estimated tokens
-saved · 15/15 V3B stack routes · 180/180 + 160/160 seeded invariants ·
-0 false local closures · sub-millisecond local decisions · live frontier
-compression 4265 → 2650 → 2438 Fireworks tokens over 9 paid calls. The
+**Metrics** — Track 3 runtime: 359/359 tests passed (5/5 real Qwen),
+12-task demonstration batch with 12/12 valid receipts and 12/12 matched
+replays, 0 Fireworks calls, 0 remote tokens, KX108_ONLY. Track 1: 8/8 AMD
+practice categories at 0 token · 18/18 internal route accuracy, 0 remote,
+5584 estimated tokens saved · 15/15 V3B stack routes · 180/180 + 160/160
+seeded invariants · 0 false local closures · sub-millisecond local
+decisions · 127/128 on the published internal hidden-like benchmark. The
 hidden AMD judge score remains external and unclaimed.
 
 **Future work** — Wire the full Brody organ and memory integration from the

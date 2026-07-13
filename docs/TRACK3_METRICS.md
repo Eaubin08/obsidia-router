@@ -3,10 +3,60 @@
 Every Track 3 / storytelling claim in this repo must map to a measured value
 with a named source file and an evidence level. No new numbers are invented
 here; everything below points to `results/REPORT.md`,
-`results/FRONTIER_REPORT.md` or a benchmark script.
+`results/FRONTIER_REPORT.md`, a benchmark script, or a Track 3
+`run_report.json`.
 
 Evidence levels: `PRACTICE` · `INTERNAL_DRY` · `LIVE_FRONTIER` · `OFFICIAL_HIDDEN`
 (see [BENCHMARKS.md](BENCHMARKS.md)).
+
+---
+
+## 0. Track 3 governed escalation runtime — verified results
+
+- **Demo video**: https://www.youtube.com/watch?v=Bxe5saL0lvo&t=195s
+- **Public container**: `ghcr.io/eaubin08/obsidia-router:track3-real-escalation`
+- **Digest**: `sha256:a2ae4b0b5ac71786ec5322406e130c97f2df1d19cae133e3b8de395189a2283c`
+- **Architecture**: linux/amd64
+- **Source**: `app/track3/`, `tests/track3/`, `Dockerfile.track3-real`,
+  `scripts/track3_real_entrypoint.py`, the container run's `run_report.json`.
+
+| Surface | Result |
+|---|---:|
+| Track 3 tests | 359/359 passed |
+| Real Qwen tests | 5/5 passed |
+| Demonstration batch | 12 tasks |
+| Receipt hashes | 12/12 valid |
+| Readonly replays | 12/12 matched |
+| Fireworks calls | 0 |
+| Remote tokens | 0 |
+| Memory writes | 0 |
+| World actions | 0 |
+| Kernel mutations | 0 |
+| Decision authority | KX108_ONLY |
+
+Escalation distribution of the 12-task demonstration batch (from the
+validated container run's `run_report.json`): LEVEL 0 = 3, LEVEL 1 = 2,
+LEVEL 2 = 2, LEVEL 3 local Qwen = 5, LEVEL 3 Brody readonly = 0.
+
+- **Allowed**:
+  > 359/359 Track 3 tests passed, including 5 real-Qwen integration tests
+  > executed against the actual local Qwen2.5-3B model. The 5 real-model
+  > tests skip automatically when no local Qwen endpoint is running.
+
+  > Accuracy: 4/5 on the scored demonstration subset (5 of the 12 demo
+  > tasks carried an expected answer).
+
+  > Brody readonly is only called when a real loopback endpoint is
+  > available; no loopback Brody endpoint was available in this run, so
+  > LEVEL 3 Brody = 0.
+- **Forbidden**:
+  > ~~80% Track 3 accuracy~~ (without naming the 5-task scored subset)
+  > ~~The private Brody was executed in the public runtime.~~
+  > ~~The demonstration batch is a general benchmark.~~
+  > ~~Track 3 numbers merged with Track 1 benchmark numbers.~~
+
+The Track 3 runtime never calls Fireworks: 0 calls and 0 remote tokens by
+construction, verified per run in `run_report.json`.
 
 ---
 
